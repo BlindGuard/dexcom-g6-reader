@@ -1,3 +1,4 @@
+#include <host/ble_gap.h>
 #include "esp_log.h"
 #include "nvs_flash.h"
 
@@ -8,18 +9,147 @@
 #include "host/ble_hs.h"
 #include "console/console.h"
 #include "services/gap/ble_svc_gap.h"
+#include "host/util/util.h"
+
+#include "util.c"
 
 static const char *tag = "[Dexcom-G6-Reader]";
+int dgr_gap_event(struct ble_gap_event *event, void *arg);
 
-void ble_sync_callback(void) {
+bool dgr_check_conn_candidate() {
+    // check if
+    return false;
+}
+
+void dgr_connect(const struct ble_gap_disc_desc *disc) {
+    int rc;
+
+    // scanning must be stopped before a connection
+    rc = ble_gap_disc_cancel();
+    if(rc != 0) {
+        ESP_LOGE(tag, "Failed to cancel scan. rc = %d", rc);
+        return;
+    }
+
+    // connection attempt
+    rc = ble_gap_connect(BLE_OWN_ADDR_PUBLIC, &disc->addr, 30000, NULL,
+            dgr_gap_event, NULL);
+    if(rc != 0) {
+        ESP_LOGE(tag, "Connection attempt failed: addr_type: %d, addr: %s",
+                disc->addr.type, addr_to_string(disc->addr.val));
+    }
+}
+
+void dgr_evaluate_adv_report(const struct ble_gap_disc_desc *disc) {
+    int rc;
+    struct ble_hs_adv_fields adv_fields;
+
+    rc = ble_hs_adv_parse_fields(&adv_fields, disc->data, disc->length_data);
+    if(rc != 0) {
+        return;
+    }
+
+    // log advertisement
+    print_adv_fields(&adv_fields);
+
+    // connect if connection candidate is desired device
+    if(dgr_check_conn_candidate()) {
+        dgr_connect(disc);
+    }
+}
+
+void dgr_start_scan(void) {
+    uint8_t own_addr_type;
+    struct ble_gap_disc_params disc_params;
+    int rc;
+
+    rc = ble_hs_id_infer_auto(1, &own_addr_type);
+    if(rc != 0) {
+        ESP_LOGE(tag, "Error while determining address type. rc = %d", rc);
+        return;
+    }
+
+    disc_params.filter_duplicates = 1;
+    disc_params.passive = 1;
+
+    // default values
+    disc_params.itvl = 0;
+    disc_params.window = 0;
+    disc_params.filter_policy = 0;
+    disc_params.limited = 0;
+
+    rc = ble_gap_disc(own_addr_type, BLE_HS_FOREVER, &disc_params,
+                      dgr_gap_event, NULL);
+    if(rc != 0) {
+        ESP_LOGE(tag, "Error in GAP discovery procedure. rc = %d", rc);
+    }
+}
+
+int dgr_gap_event(struct ble_gap_event *event, void *arg) {
+	switch(event->type) {
+	    case BLE_GAP_EVENT_CONNECT:
+	        // new connection established or connection attempt failed
+	        if(event->connect.status != 0) {
+	            // connection attempt failed
+	            ESP_LOGE(tag, "Connection attempt failed. error code: %d",
+	                    event->connect.status);
+
+                // rerun scan
+                dgr_start_scan();
+	        } else {
+	            // connection successfully
+	            ESP_LOGI(tag, "Connection successfull. handle: %d",
+	                    event->connect.conn_handle);
+	            // TODO: start further actions (calibration, data collection, etc.)
+	            return 0;
+	        }
+
+		case BLE_GAP_EVENT_DISC:
+			// event when an advertising report is received during
+			// discovery procedure
+			ESP_LOGI(tag, "GAP advertising report received");
+
+			dgr_evaluate_adv_report(&event->disc);
+			return 0;
+
+		case BLE_GAP_EVENT_DISC_COMPLETE:
+			// discovery completes when timed out or when
+			// a connection is initiated (?)
+			ESP_LOGI(tag, "GAP discovery procedure completed, reason = %d",
+					event->disc_complete.reason);
+
+			if(event->disc_complete.reason == 0) {
+			    // rerun scan for timed out scan
+			    dgr_start_scan();
+			}
+
+			return 0;
+
+		default:
+			ESP_LOGI(tag, "Not processed event with type: %d", event->type);
+			return 0;
+	}
+}
+
+void dgr_sync_callback(void) {
+	int rc;
+
+	// check for proper identity address
+	rc = ble_hs_util_ensure_addr(0);
+	assert(rc == 0);
+
 	// start device scan
-	// https://mynewt.apache.org/latest/network/docs/ble_hs/ble_gap.html#c.ble_gap_disc
+	ESP_LOGI(tag, "Host and Controller synced. Starting device scan.");
+	dgr_start_scan();
 }
 
-void ble_reset_callback(int reason) {
+void dgr_reset_callback(int reason) {
+    ESP_LOGI(tag, "Resetting state, reason:%d", reason);
+
+    // restart scan (?)
 }
 
-void ble_host_task(void *param) {
+void dgr_host_task(void *param) {
 	ESP_LOGI(tag, "BLE Host Task started.");
 	nimble_port_run();
 	nimble_port_freertos_deinit();
@@ -44,12 +174,12 @@ void app_main(void) {
 
 	// initialize NimBLE host configuration and callbacks
 	// sync callback (controller and host sync, executed at startup/reset)
-	ble_hs_cfg.sync_cb = ble_sync_callback;
+	ble_hs_cfg.sync_cb = dgr_sync_callback;
 	// reset callback (executed after fatal error)
-	ble_hs_cfg.reset_cb = ble_reset_callback;
+	ble_hs_cfg.reset_cb = dgr_reset_callback;
 	// store status callback (executed when persistence operation cannot be performed)
 	//ble_hs_cfg.store_status_cb = 
 	
 	// run host stack thread
-	nimble_port_freertos_init(ble_host_task);
+	nimble_port_freertos_init(dgr_host_task);
 }
