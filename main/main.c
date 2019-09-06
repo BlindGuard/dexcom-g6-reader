@@ -7,21 +7,40 @@
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "host/ble_hs.h"
-#include "console/console.h"
 #include "services/gap/ble_svc_gap.h"
 #include "host/util/util.h"
 
 #include "util.c"
+#include "gatt.c"
+#include "messages.c"
 
-static const char *tag = "[Dexcom-G6-Reader]";
+// 8 digit sensor id
+const char *sensor_id = "800000";
+static const char *tag = "[Dexcom-G6-Reader][main]";
 int dgr_gap_event(struct ble_gap_event *event, void *arg);
 
-bool dgr_check_conn_candidate() {
-    // check if
+bool
+dgr_check_conn_candidate(struct ble_hs_adv_fields *adv_fields) {
+    int i;
+
+    // check if name is equal to desired sensor id
+    if(adv_fields->name != NULL && adv_fields->name_len == 6) {
+        for (i = 0; i < 6; i++) {
+            if (adv_fields->name[i] != sensor_id[i]) {
+                ESP_LOGE(tag, "Connection candidate has the wrong name.");
+                return false;
+            }
+        }
+        ESP_LOGI(tag, "Found a connection candidate.");
+        return true;
+    }
+
+    ESP_LOGE(tag, "Connection candidate name not set or wrong length.");
     return false;
 }
 
-void dgr_connect(const struct ble_gap_disc_desc *disc) {
+void
+dgr_connect(const struct ble_gap_disc_desc *disc) {
     int rc;
 
     // scanning must be stopped before a connection
@@ -40,7 +59,8 @@ void dgr_connect(const struct ble_gap_disc_desc *disc) {
     }
 }
 
-void dgr_evaluate_adv_report(const struct ble_gap_disc_desc *disc) {
+void
+dgr_evaluate_adv_report(const struct ble_gap_disc_desc *disc) {
     int rc;
     struct ble_hs_adv_fields adv_fields;
 
@@ -53,12 +73,13 @@ void dgr_evaluate_adv_report(const struct ble_gap_disc_desc *disc) {
     print_adv_fields(&adv_fields);
 
     // connect if connection candidate is desired device
-    if(dgr_check_conn_candidate()) {
+    if(dgr_check_conn_candidate(&adv_fields)) {
         dgr_connect(disc);
     }
 }
 
-void dgr_start_scan(void) {
+void
+dgr_start_scan(void) {
     uint8_t own_addr_type;
     struct ble_gap_disc_params disc_params;
     int rc;
@@ -70,7 +91,7 @@ void dgr_start_scan(void) {
     }
 
     disc_params.filter_duplicates = 1;
-    disc_params.passive = 1;
+    disc_params.passive = 0;
 
     // default values
     disc_params.itvl = 0;
@@ -85,7 +106,8 @@ void dgr_start_scan(void) {
     }
 }
 
-int dgr_gap_event(struct ble_gap_event *event, void *arg) {
+int
+dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	switch(event->type) {
 	    case BLE_GAP_EVENT_CONNECT:
 	        // new connection established or connection attempt failed
@@ -101,6 +123,7 @@ int dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	            ESP_LOGI(tag, "Connection successfull. handle: %d",
 	                    event->connect.conn_handle);
 	            // TODO: start further actions (calibration, data collection, etc.)
+                dgr_discover_service(event->connect.conn_handle, &cgm_service_uuid);
 	            return 0;
 	        }
 
@@ -131,7 +154,8 @@ int dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	}
 }
 
-void dgr_sync_callback(void) {
+void
+dgr_sync_callback(void) {
 	int rc;
 
 	// check for proper identity address
@@ -143,19 +167,22 @@ void dgr_sync_callback(void) {
 	dgr_start_scan();
 }
 
-void dgr_reset_callback(int reason) {
+void
+dgr_reset_callback(int reason) {
     ESP_LOGI(tag, "Resetting state, reason:%d", reason);
 
     // restart scan (?)
 }
 
-void dgr_host_task(void *param) {
+void
+dgr_host_task(void *param) {
 	ESP_LOGI(tag, "BLE Host Task started.");
 	nimble_port_run();
 	nimble_port_freertos_deinit();
 }
 
-void app_main(void) {
+void
+app_main(void) {
 	//int rc;
 
 	// initialize NVS flash
