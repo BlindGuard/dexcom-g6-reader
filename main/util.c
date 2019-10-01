@@ -1,8 +1,10 @@
 #include <stdio.h>
-#include "esp_log.h"
+
 #include "modlog/modlog.h"
 #include "nimble/ble.h"
 #include "host/ble_hs_adv.h"
+
+#include "dexcom_g6_reader.h"
 
 char*
 addr_to_string(const void *addr) {

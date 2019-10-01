@@ -1,22 +1,21 @@
 #include <host/ble_gap.h>
-#include "esp_log.h"
 #include "nvs_flash.h"
 
 // BLE
+#include "host/ble_hs.h"
+#include "host/util/util.h"
 #include "esp_nimble_hci.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
-#include "host/ble_hs.h"
 #include "services/gap/ble_svc_gap.h"
-#include "host/util/util.h"
+#include "services/gatt/ble_svc_gatt.h"
 
-#include "util.c"
-#include "gatt.c"
-#include "messages.c"
+#include "dexcom_g6_reader.h"
 
-// 8 digit sensor id
-const char *sensor_id = "800000";
 static const char *tag = "[Dexcom-G6-Reader][main]";
+// 8 digit sensor id
+const char *sensor_id = "812345";
+
 int dgr_gap_event(struct ble_gap_event *event, void *arg);
 
 bool
@@ -122,8 +121,9 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	            // connection successfully
 	            ESP_LOGI(tag, "Connection successfull. handle: %d",
 	                    event->connect.conn_handle);
-	            // TODO: start further actions (calibration, data collection, etc.)
-                dgr_discover_service(event->connect.conn_handle, &cgm_service_uuid);
+
+                // start discovery of service
+                dgr_discover_service(event->connect.conn_handle, &cgm_service_uuid.u);
 	            return 0;
 	        }
 
@@ -133,8 +133,8 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 			ESP_LOGI(tag, "GAP advertising report received");
 
 			dgr_evaluate_adv_report(&event->disc);
-			return 0;
 
+			return 0;
 		case BLE_GAP_EVENT_DISC_COMPLETE:
 			// discovery completes when timed out or when
 			// a connection is initiated (?)
@@ -147,7 +147,13 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 			}
 
 			return 0;
+	    case BLE_GAP_EVENT_NOTIFY_RX:
+            ESP_LOGI(tag, "Received message, type=%s",
+                event->notify_rx.indication == 0 ? "Notification" : "Indication");
+            dgr_handle_rx(event->notify_rx.om, event->notify_rx.attr_handle,
+                event->notify_rx.conn_handle);
 
+            return 0;
 		default:
 			ESP_LOGI(tag, "Not processed event with type: %d", event->type);
 			return 0;
@@ -199,13 +205,21 @@ app_main(void) {
 	// initialize host stack
 	nimble_port_init();
 
+	// initialize mbuf pool
+    dgr_create_mbuf_pool();
+    // initialize aes context
+    dgr_create_crypto_context();
+
 	// initialize NimBLE host configuration and callbacks
 	// sync callback (controller and host sync, executed at startup/reset)
 	ble_hs_cfg.sync_cb = dgr_sync_callback;
 	// reset callback (executed after fatal error)
 	ble_hs_cfg.reset_cb = dgr_reset_callback;
 	// store status callback (executed when persistence operation cannot be performed)
-	//ble_hs_cfg.store_status_cb = 
+	//ble_hs_cfg.store_status_cb =
+
+	ble_svc_gap_init();
+	ble_svc_gatt_init();
 	
 	// run host stack thread
 	nimble_port_freertos_init(dgr_host_task);
