@@ -37,18 +37,44 @@ struct os_mbuf_pool dgr_mbuf_pool;
 struct os_mempool dgr_mbuf_mempool;
 os_membuf_t dgr_mbuf_buffer[MBUF_MEMPOOL_SIZE];
 
+/** list for characteristics */
+typedef struct uuid_handles {
+    ble_uuid_t *uuid;
+    uint16_t val_handle;
+    uint16_t def_handle;
+} uuid_handles;
+
+typedef struct list_element {
+    struct list_element *next;
+    uuid_handles data;
+} list_element;
+
+typedef struct list {
+    list_element *head;
+    list_element *tail;
+    int length;
+} list;
+
 /**  util.c **/
 char* addr_to_string(const void *addr);
 void print_adv_fields(struct ble_hs_adv_fields *adv_fields);
 
 /**  gatt.c **/
-void dgr_discover_service(uint16_t conn_handle, const ble_uuid_t *svc_uuid);
+void dgr_discover_services(uint16_t conn_handle);
 void dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle);
+
+/**  characteristics.c */
+void dgr_add_to_list(list *l, uuid_handles in);
+void dgr_find_in_list(list *l, const ble_uuid_t *uuid, uuid_handles *out);
+void dgr_print_list(list *l);
 
 /**  messages.c **/
 void dgr_build_auth_request_msg(struct os_mbuf *om);
 void dgr_build_auth_challenge_msg(struct os_mbuf *om);
-void dgr_parse_auth_challenge_msg(uint8_t *data, uint8_t length);
+void dgr_build_keep_alive_msg(struct os_mbuf *om, uint8_t time);
+void dgr_build_bond_request_msg(struct os_mbuf *om);
+void dgr_parse_auth_challenge_msg(uint8_t *data, uint8_t length, bool *correct_token);
 void dgr_parse_auth_status_msg(uint8_t *data, uint8_t length);
 void dgr_create_mbuf_pool();
 void dgr_create_crypto_context();
+void dgr_print_token_details();

@@ -123,7 +123,7 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	                    event->connect.conn_handle);
 
                 // start discovery of service
-                dgr_discover_service(event->connect.conn_handle, &cgm_service_uuid.u);
+                dgr_discover_services(event->connect.conn_handle);
 	            return 0;
 	        }
 
