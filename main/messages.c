@@ -11,7 +11,7 @@ unsigned char challenge_bytes[8];
 uint8_t authentication_status = 0;
 uint8_t bond_status = 0;
 mbedtls_aes_context aes_ecb_ctx;
-unsigned char *key;
+unsigned char key[16];
 
 void
 dgr_encrypt(unsigned char in_bytes[8], unsigned char out_bytes[8]) {
@@ -158,14 +158,14 @@ dgr_create_mbuf_pool() {
 
 void
 dgr_create_crypto_context() {
-    mbedtls_aes_init(&aes_ecb_ctx);
-    mbedtls_aes_setkey_enc(&aes_ecb_ctx, key, 128);
-    mbedtls_aes_setkey_dec(&aes_ecb_ctx, key, 128);
-
     for(int i = 0; i < 6; i++) {
         key[i + 2] = sensor_id[i];
         key[i + 10] = sensor_id[i];
     }
+
+    mbedtls_aes_init(&aes_ecb_ctx);
+    mbedtls_aes_setkey_enc(&aes_ecb_ctx, key, 128);
+    mbedtls_aes_setkey_dec(&aes_ecb_ctx, key, 128);
 }
 
 void

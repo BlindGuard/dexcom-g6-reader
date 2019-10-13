@@ -38,15 +38,9 @@ struct os_mempool dgr_mbuf_mempool;
 os_membuf_t dgr_mbuf_buffer[MBUF_MEMPOOL_SIZE];
 
 /** list for characteristics */
-typedef struct uuid_handles {
-    ble_uuid_t *uuid;
-    uint16_t val_handle;
-    uint16_t def_handle;
-} uuid_handles;
-
 typedef struct list_element {
     struct list_element *next;
-    uuid_handles data;
+    struct ble_gatt_chr data;
 } list_element;
 
 typedef struct list {
@@ -64,8 +58,8 @@ void dgr_discover_services(uint16_t conn_handle);
 void dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle);
 
 /**  characteristics.c */
-void dgr_add_to_list(list *l, uuid_handles in);
-void dgr_find_in_list(list *l, const ble_uuid_t *uuid, uuid_handles *out);
+void dgr_add_to_list(list *l, const struct ble_gatt_chr *in);
+int dgr_find_in_list(list *l, const ble_uuid_t *uuid, struct ble_gatt_chr *out);
 void dgr_print_list(list *l);
 
 /**  messages.c **/

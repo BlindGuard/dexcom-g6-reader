@@ -1,3 +1,4 @@
+#include <host/ble_hs.h>
 #include "dexcom_g6_reader.h"
 
 const char* tag_gatt = "[Dexcom-G6-Reader][gatt]";
@@ -37,7 +38,7 @@ dgr_send_notification_enable_msg(uint16_t conn_handle) {
     // the CCCD of control_uuid
     // TODO: find right handle
     uint8_t data[2] = {1, 0};
-    uuid_handles uh;
+    struct ble_gatt_chr uh;
     uint16_t handle = 0;
     int rc;
 
@@ -63,7 +64,7 @@ dgr_send_bond_request_msg(uint16_t conn_handle) {
 
     if(om) {
         dgr_build_bond_request_msg(om);
-        uuid_handles uh;
+        struct ble_gatt_chr uh;
         dgr_find_in_list(&characteristics, &authentication_uuid.u, &uh);
 
         if(uh.val_handle != 0) {
@@ -89,7 +90,7 @@ dgr_send_keep_alive_msg(uint16_t conn_handle, uint8_t time) {
 
     if(om) {
         dgr_build_keep_alive_msg(om, time);
-        uuid_handles uh;
+        struct ble_gatt_chr uh;
         dgr_find_in_list(&characteristics, &authentication_uuid.u, &uh);
 
         if(uh.val_handle != 0) {
@@ -115,10 +116,10 @@ dgr_send_auth_request_msg(uint16_t conn_handle) {
 
     if(om) {
         dgr_build_auth_request_msg(om);
-        uuid_handles uh;
-        dgr_find_in_list(&characteristics, &authentication_uuid.u, &uh);
+        struct ble_gatt_chr uh;
+        rc = dgr_find_in_list(&characteristics, &authentication_uuid.u, &uh);
 
-        if(uh.val_handle != 0) {
+        if(rc == 0) {
             auth_attr_handle = uh.val_handle;
 
             ESP_LOGI(tag_gatt, "[01] Sending AuthRequest message. handle = %d",
@@ -131,6 +132,8 @@ dgr_send_auth_request_msg(uint16_t conn_handle) {
         } else {
             ESP_LOGE(tag_gatt, "Could not find val_handle for authentication uuid.");
         }
+    } else {
+        ESP_LOGE(tag_gatt, "mbuf error");
     }
 }
 
@@ -142,7 +145,7 @@ dgr_send_auth_challenge_msg(uint16_t conn_handle) {
 
     if(om) {
         dgr_build_auth_challenge_msg(om);
-        uuid_handles uh;
+        struct ble_gatt_chr uh;
         dgr_find_in_list(&characteristics, &authentication_uuid.u, &uh);
 
         if(uh.val_handle != 0) {
@@ -209,13 +212,13 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
 int
 dgr_discover_service_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
         const struct ble_gatt_svc *service, void *arg) {
-    if(error->status == 14) {
+    if(error->status == BLE_HS_EDONE) {
         ESP_LOGI(tag_gatt, "Service discovery finished.");
-
-        dgr_send_auth_request_msg(conn_handle);
     } else {
-        ESP_LOGI(tag_gatt, "Service discovery: status=%d, att_handle=%d",
-                 error->status, error->att_handle);
+        char buf[BLE_UUID_STR_LEN];
+        ble_uuid_to_str(&service->uuid.u, buf);
+        ESP_LOGI(tag_gatt, "Service discovery: status=%d, att_handle=%d, uuid = %s",
+                 error->status, error->att_handle, buf);
 
         if (service != NULL) {
             int rc = ble_gattc_disc_all_chrs(conn_handle, service->start_handle,
@@ -236,27 +239,27 @@ dgr_discover_service_cb(uint16_t conn_handle, const struct ble_gatt_error *error
 int
 dgr_discover_chr_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
         const struct ble_gatt_chr *chr, void *arg) {
-    if(error->status == 14) {
+    if(error->status == BLE_HS_EDONE) {
         ESP_LOGI(tag_gatt, "Characteristics discovery finished.");
 
         dgr_print_list(&characteristics);
+        dgr_send_auth_request_msg(conn_handle);
     } else {
-        char buf[BLE_UUID_STR_LEN];
+        //char buf[BLE_UUID_STR_LEN];
 
         ESP_LOGI(tag_gatt, "Characteristics discovery: status=%d, att_handle=%d",
                  error->status, error->att_handle);
         if (chr != NULL) {
+            /*
             ESP_LOGI(tag_gatt, "Characteristic:");
             ESP_LOGI(tag_gatt, "\tdef_handle = %d", chr->def_handle);
             ESP_LOGI(tag_gatt, "\tval_handle = %d", chr->val_handle);
             ESP_LOGI(tag_gatt, "\tproperties = %d", chr->properties);
             ble_uuid_to_str(&chr->uuid.u, buf);
             ESP_LOGI(tag_gatt, "\tuuid       = %s", buf);
+             */
 
-            uuid_handles uh = {.uuid = &chr->uuid.u,
-                               .val_handle = chr->val_handle,
-                               .def_handle = chr->def_handle};
-            dgr_add_to_list(&characteristics, uh);
+            dgr_add_to_list(&characteristics, chr);
         } else {
             ESP_LOGE(tag_gatt, "Discover Characteristic callback: Characteristic is NULL");
         }
