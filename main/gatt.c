@@ -169,7 +169,7 @@ void
 dgr_discover_services(uint16_t conn_handle) {
     int rc;
 
-    rc = ble_gattc_disc_all_svcs(conn_handle, dgr_discover_service_cb, NULL);
+    rc = ble_gattc_disc_all_chrs(conn_handle, 1, 65535, dgr_discover_chr_cb, NULL);
     if (rc != 0) {
         ESP_LOGE(tag_gatt, "Error calling service discovery. rc = %d", rc);
     }
