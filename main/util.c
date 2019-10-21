@@ -115,3 +115,17 @@ print_adv_fields(struct ble_hs_adv_fields *adv_fields) {
         MODLOG_DFLT(INFO, "\n");
     }
 }
+
+void dgr_print_rx_packet(struct os_mbuf *om) {
+    MODLOG_DFLT(DEBUG, "rx packet dump:\n");
+    MODLOG_DFLT(DEBUG, "\tpkthdr_len = %d\n", om->om_pkthdr_len);
+    MODLOG_DFLT(DEBUG, "\tdata_len   = %d\n", om->om_len);
+
+    MODLOG_DFLT(DEBUG, "\t");
+    for(int i = 0; i < om->om_len; i++) {
+        MODLOG_DFLT(DEBUG, "%02x ", om->om_data[i]);
+        if(i != 0 && i % 10 == 0) {
+            MODLOG_DFLT(DEBUG, "\n\t");
+        }
+    }
+}

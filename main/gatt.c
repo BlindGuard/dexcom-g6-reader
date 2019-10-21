@@ -35,8 +35,8 @@ int dgr_write_attr_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
 void
 dgr_send_notification_enable_msg(uint16_t conn_handle) {
     // enable notifications by writing two bytes (1, 0) to
-    // the CCCD of control_uuid
-    // TODO: find right handle
+    // the CCCD (==control_uuid ?)
+    // TODO: find right handle?
     uint8_t data[2] = {1, 0};
     struct ble_gatt_chr uh;
     uint16_t handle = 0;
@@ -46,6 +46,7 @@ dgr_send_notification_enable_msg(uint16_t conn_handle) {
     if(uh.val_handle != 0) {
         handle = uh.val_handle;
 
+        ESP_LOGI(tag_gatt, "Enabling notifications.");
         rc = ble_gattc_write_flat(conn_handle, handle, data, sizeof data, dgr_write_attr_cb, NULL);
         if (rc != 0) {
             ESP_LOGE(tag_gatt, "Error while enabling notifications. handle = %d, rc = %d",
@@ -179,6 +180,8 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
     if(om && om->om_len > 0) {
         uint8_t op = om->om_data[0];
 
+        dgr_print_rx_packet(om);
+
         switch(op) {
             case AUTH_CHALLENGE_RX_OPCODE: {
                 bool correct_token = true;
@@ -196,6 +199,7 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
                 dgr_parse_auth_status_msg(om->om_data, om->om_len);
                 dgr_send_keep_alive_msg(conn_handle, 25);
                 dgr_send_bond_request_msg(conn_handle);
+                dgr_send_notification_enable_msg(conn_handle);
                 break;
             }
             default:

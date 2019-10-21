@@ -52,6 +52,7 @@ typedef struct list {
 /**  util.c **/
 char* addr_to_string(const void *addr);
 void print_adv_fields(struct ble_hs_adv_fields *adv_fields);
+void dgr_print_rx_packet(struct os_mbuf *om);
 
 /**  gatt.c **/
 void dgr_discover_services(uint16_t conn_handle);
