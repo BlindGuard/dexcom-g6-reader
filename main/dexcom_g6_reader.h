@@ -17,7 +17,7 @@
 #define GLUCOSE_TX_OPCODE           0x4e
 #define GLUCOSE_RX_OPCODE           0x4f
 
-extern const char *sensor_id;
+extern const char *transmitter_id;
 
 extern const ble_uuid16_t advertisement_uuid;
 extern const ble_uuid128_t cgm_service_uuid;

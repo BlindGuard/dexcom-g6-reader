@@ -13,8 +13,7 @@
 #include "dexcom_g6_reader.h"
 
 static const char *tag = "[Dexcom-G6-Reader][main]";
-// 8 digit sensor id
-const char *sensor_id = "812345";
+const char *transmitter_id = "812345";
 
 int dgr_gap_event(struct ble_gap_event *event, void *arg);
 
@@ -22,10 +21,10 @@ bool
 dgr_check_conn_candidate(struct ble_hs_adv_fields *adv_fields) {
     int i;
 
-    // check if name is equal to desired sensor id
+    // check if name is equal to desired transmitter id
     if(adv_fields->name != NULL && adv_fields->name_len == 6) {
         for (i = 0; i < 6; i++) {
-            if (adv_fields->name[i] != sensor_id[i]) {
+            if (adv_fields->name[i] != transmitter_id[i]) {
                 ESP_LOGE(tag, "Connection candidate has the wrong name.");
                 return false;
             }

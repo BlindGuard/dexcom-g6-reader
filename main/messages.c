@@ -159,8 +159,8 @@ dgr_create_mbuf_pool() {
 void
 dgr_create_crypto_context() {
     for(int i = 0; i < 6; i++) {
-        key[i + 2] = sensor_id[i];
-        key[i + 10] = sensor_id[i];
+        key[i + 2] = transmitter_id[i];
+        key[i + 10] = transmitter_id[i];
     }
 
     mbedtls_aes_init(&aes_ecb_ctx);
