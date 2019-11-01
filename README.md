@@ -4,7 +4,8 @@
 
 ### Hardware
 
-This project was created on and for the ESP-WROOM-32 SoC.
+This project was created on and for the ESP-WROOM-32 SoC. 
+It is intended to read glucose levels from a [Dexcom G6 transmitter](https://www.dexcom.com/g6-cgm-system). 
 
 
 ### Prerequisites
