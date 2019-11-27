@@ -19,21 +19,19 @@ int dgr_gap_event(struct ble_gap_event *event, void *arg);
 
 bool
 dgr_check_conn_candidate(struct ble_hs_adv_fields *adv_fields) {
-    int i;
+    // sensor name is DexcomXX, where XX are the last 2 digits of
+    // the transmitter id
+    if(adv_fields->name != NULL) {
+        int name_len = adv_fields->name_len;
+        if(adv_fields->name[name_len - 1] == transmitter_id[5] &&
+           adv_fields->name[name_len - 2] == transmitter_id[4]) {
 
-    // check if name is equal to desired transmitter id
-    if(adv_fields->name != NULL && adv_fields->name_len == 6) {
-        for (i = 0; i < 6; i++) {
-            if (adv_fields->name[i] != transmitter_id[i]) {
-                ESP_LOGE(tag, "Connection candidate has the wrong name.");
-                return false;
-            }
+            ESP_LOGI(tag, "Found a connection candidate.");
+            return true;
         }
-        ESP_LOGI(tag, "Found a connection candidate.");
-        return true;
     }
 
-    ESP_LOGE(tag, "Connection candidate name not set or wrong length.");
+    ESP_LOGE(tag, "Connection candidate name not set or wrong.");
     return false;
 }
 

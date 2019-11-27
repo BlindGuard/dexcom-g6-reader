@@ -15,7 +15,7 @@ To compile this project you need to setup the [ESP-IDF and toolchain](https://do
 
 ### Configuration
 
-For this software to work, you have to change the 6-digit `transmitter_id` in `dexcom_g6_reader.h` to the serial number of the 
+For this software to work, you have to change the 6-digit `transmitter_id` in `main.c` to the serial number of the 
 transmitter you want to connect to.  
 ```
 const char *transmitter_id = "8xxxxx";
