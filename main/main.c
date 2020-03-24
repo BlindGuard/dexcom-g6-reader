@@ -116,7 +116,7 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
                 dgr_start_scan();
 	        } else {
 	            // connection successfully
-	            ESP_LOGI(tag, "Connection successfull. handle: %d",
+	            ESP_LOGI(tag, "Connection successfull. handle = %d",
 	                    event->connect.conn_handle);
 
                 // start discovery of service
@@ -132,6 +132,7 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 			dgr_evaluate_adv_report(&event->disc);
 
 			return 0;
+
 		case BLE_GAP_EVENT_DISC_COMPLETE:
 			// discovery completes when timed out or when
 			// a connection is initiated (?)
@@ -144,13 +145,20 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 			}
 
 			return 0;
+
 	    case BLE_GAP_EVENT_NOTIFY_RX:
-            ESP_LOGI(tag, "Received message, type=%s",
+            ESP_LOGI(tag, "Received message, type = %s",
                 event->notify_rx.indication == 0 ? "Notification" : "Indication");
             dgr_handle_rx(event->notify_rx.om, event->notify_rx.attr_handle,
                 event->notify_rx.conn_handle);
 
             return 0;
+
+	    case BLE_GAP_EVENT_DISCONNECT:
+	        ESP_LOGI(tag, "Disconnect: handle = %d, reason = %d",
+                       event->disconnect.conn.conn_handle, event->disconnect.reason);
+            return 0;
+
 		default:
 			ESP_LOGI(tag, "Not processed event with type: %d", event->type);
 			return 0;
