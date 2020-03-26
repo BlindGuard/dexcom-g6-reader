@@ -37,14 +37,16 @@ dgr_encrypt(unsigned char in_bytes[8], unsigned char out_bytes[8]) {
 void
 dgr_build_auth_request_msg(struct os_mbuf *om) {
     uint8_t msg[10];
-    unsigned int random = esp_random();
+    uint8_t rnd;
     unsigned int i;
     int rc;
 
     if(om) {
         for(i = 0; i < 8; i++) {
-            msg[i + 1] = random >> (i * 8);
-            token_bytes[i] = random >> (i * 8);
+            rnd = esp_random() % 256;
+
+            msg[i + 1] = rnd;
+            token_bytes[i] = rnd;
         }
 
         dgr_encrypt(token_bytes, enc_token_bytes);
@@ -56,6 +58,9 @@ dgr_build_auth_request_msg(struct os_mbuf *om) {
         if(rc != 0) {
             ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = %d", rc);
         }
+
+        ESP_LOGI(tag_msg, "AuthRequest message: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
+            msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6], msg[7], msg[8], msg[9]);
     }
 }
 

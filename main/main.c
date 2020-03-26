@@ -119,6 +119,12 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	            ESP_LOGI(tag, "Connection successfull. handle = %d",
 	                    event->connect.conn_handle);
 
+	            // security
+                int rc = ble_gap_security_initiate(event->connect.conn_handle);
+                if(rc != 0) {
+                    ESP_LOGE(tag, "GAP security initiate failed. error = %x", rc);
+                }
+
                 // start discovery of service
                 dgr_discover_services(event->connect.conn_handle);
 	            return 0;
@@ -155,7 +161,7 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
             return 0;
 
 	    case BLE_GAP_EVENT_DISCONNECT:
-	        ESP_LOGI(tag, "Disconnect: handle = %d, reason = %d",
+	        ESP_LOGI(tag, "Disconnect: handle = %d, reason = %x",
                        event->disconnect.conn.conn_handle, event->disconnect.reason);
             return 0;
 
