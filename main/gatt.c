@@ -331,6 +331,11 @@ dgr_read_auth_challenge_cb(uint16_t conn_handle, const struct ble_gatt_error *er
     ESP_LOGI(tag_gatt, "[02] AuthChallenge: read callback.");
 
     dgr_print_cb_info(error, attr);
+    if(attr && attr->om) {
+        dgr_print_rx_packet(attr->om);
+    } else {
+        ESP_LOGE(tag_gatt, "[02] AuthChallenge: mbuf not initialized");
+    }
     return 0;
 }
 
@@ -350,6 +355,11 @@ dgr_read_auth_status_cb(uint16_t conn_handle, const struct ble_gatt_error *error
     ESP_LOGI(tag_gatt, "[04] AuthStatus: read callback.");
 
     dgr_print_cb_info(error, attr);
+    if(attr && attr->om) {
+        dgr_print_rx_packet(attr->om);
+    } else {
+        ESP_LOGE(tag_gatt, "[04] AuthStatus: mbuf not initialized");
+    }
     return 0;
 }
 

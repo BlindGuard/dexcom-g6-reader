@@ -114,6 +114,7 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 
                 // rerun scan
                 dgr_start_scan();
+                return 0;
 	        } else {
 	            // connection successfully
 	            ESP_LOGI(tag, "Connection successfull. handle = %d",

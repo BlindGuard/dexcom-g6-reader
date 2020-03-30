@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 #include "nimble/ble.h"
-#include "host/ble_hs_adv.h"
 
 #include "dexcom_g6_reader.h"
 
@@ -118,7 +117,7 @@ print_adv_fields(struct ble_hs_adv_fields *adv_fields) {
 }
 
 void dgr_print_rx_packet(struct os_mbuf *om) {
-    ESP_LOGI(tag_util, "rx packet dump:");
+    ESP_LOGI(tag_util, "os_mbuf dump:");
     ESP_LOGI(tag_util, "\tpkthdr_len = %d", om->om_pkthdr_len);
     ESP_LOGI(tag_util, "\tdata_len   = %d", om->om_len);
 

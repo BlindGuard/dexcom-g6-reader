@@ -1,5 +1,6 @@
 #include "esp_log.h"
 #include "host/ble_gatt.h"
+#include "host/ble_hs_adv.h"
 #include "os/os.h"
 
 // Opcodes
