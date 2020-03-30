@@ -118,9 +118,9 @@ print_adv_fields(struct ble_hs_adv_fields *adv_fields) {
 }
 
 void dgr_print_rx_packet(struct os_mbuf *om) {
-    ESP_LOGI(tag_util, "rx packet dump:\n");
-    ESP_LOGI(tag_util, "\tpkthdr_len = %d\n", om->om_pkthdr_len);
-    ESP_LOGI(tag_util, "\tdata_len   = %d\n", om->om_len);
+    ESP_LOGI(tag_util, "rx packet dump:");
+    ESP_LOGI(tag_util, "\tpkthdr_len = %d", om->om_pkthdr_len);
+    ESP_LOGI(tag_util, "\tdata_len   = %d", om->om_len);
 
     ESP_LOGI(tag_util, "\t");
     for(int i = 0; i < om->om_len; i++) {

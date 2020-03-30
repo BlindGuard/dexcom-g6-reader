@@ -44,6 +44,10 @@ int dgr_send_keep_alive_cb(uint16_t conn_handle, const struct ble_gatt_error *er
 int dgr_send_bond_request_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
     struct ble_gatt_attr *attr, void *arg);
 
+void
+dgr_send_auth_challenge_msg(uint16_t conn_handle);
+void
+dgr_send_keep_alive_msg(uint16_t conn_handle, uint8_t time);
 
 void
 dgr_discover_services(uint16_t conn_handle) {
@@ -62,8 +66,27 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
 
         dgr_print_rx_packet(om);
 
-        // TODO: remove/clean up this
         switch(op) {
+            case AUTH_CHALLENGE_RX_OPCODE: {
+                bool correct_token = true;
+
+                dgr_parse_auth_challenge_msg(om->om_data, om->om_len, &correct_token);
+
+                if(correct_token) {
+                    dgr_send_auth_challenge_msg(conn_handle);
+                } else {
+                    ESP_LOGE(tag_gatt, "Received encrypted token does not have the expected value.");
+                    dgr_print_token_details();
+                }
+                break;
+            }
+
+            case AUTH_STATUS_RX_OPCODE: {
+                dgr_parse_auth_status_msg(om->om_data, om->om_len);
+                dgr_send_keep_alive_msg(conn_handle, 25);
+                break;
+            }
+
             case GLUCOSE_RX_OPCODE: {
                 //dgr_parse_glucose_msg();
                 ESP_LOGI(tag_gatt, "Received glucose message.");
@@ -308,16 +331,6 @@ dgr_read_auth_challenge_cb(uint16_t conn_handle, const struct ble_gatt_error *er
     ESP_LOGI(tag_gatt, "[02] AuthChallenge: read callback.");
 
     dgr_print_cb_info(error, attr);
-    bool correct_token = true;
-
-    dgr_parse_auth_challenge_msg(attr->om->om_data, attr->om->om_len, &correct_token);
-
-    if(correct_token) {
-        dgr_send_auth_challenge_msg(conn_handle);
-    } else {
-        ESP_LOGE(tag_gatt, "Received encrypted token does not have the expected value.");
-        dgr_print_token_details();
-    }
     return 0;
 }
 
@@ -337,8 +350,6 @@ dgr_read_auth_status_cb(uint16_t conn_handle, const struct ble_gatt_error *error
     ESP_LOGI(tag_gatt, "[04] AuthStatus: read callback.");
 
     dgr_print_cb_info(error, attr);
-    dgr_parse_auth_status_msg(attr->om->om_data, attr->om->om_len);
-    dgr_send_keep_alive_msg(conn_handle, 25);
     return 0;
 }
 

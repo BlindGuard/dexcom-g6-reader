@@ -51,8 +51,8 @@ dgr_build_auth_request_msg(struct os_mbuf *om) {
 
         dgr_encrypt(token_bytes, enc_token_bytes);
 
-        msg[0] = AUTH_REQUEST_TX_OPCODE;
-        msg[9] = 0x2;
+        msg[9] = AUTH_REQUEST_TX_OPCODE;
+        msg[0] = 0x2;
 
         rc = os_mbuf_copyinto(om, 0, msg, 10);
         if(rc != 0) {
@@ -134,6 +134,8 @@ dgr_parse_auth_status_msg(uint8_t *data, uint8_t length) {
     if(length == 3) {
         authentication_status = data[1];
         bond_status = data[2];
+
+        ESP_LOGI(tag_msg, "[04] AuthStatus: auth = %d, bond = %d", authentication_status, bond_status);
     } else {
         ESP_LOGE(tag_msg, "Received AuthStatus message has wrong length(%d).", length);
     }
