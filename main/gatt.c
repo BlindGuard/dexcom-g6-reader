@@ -68,22 +68,12 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
 
         switch(op) {
             case AUTH_CHALLENGE_RX_OPCODE: {
-                bool correct_token = true;
-
-                dgr_parse_auth_challenge_msg(om->om_data, om->om_len, &correct_token);
-
-                if(correct_token) {
-                    dgr_send_auth_challenge_msg(conn_handle);
-                } else {
-                    ESP_LOGE(tag_gatt, "Received encrypted token does not have the expected value.");
-                    dgr_print_token_details();
-                }
+                ESP_LOGE(tag_gatt, "handle_rx: AuthChallenge received.");
                 break;
             }
 
             case AUTH_STATUS_RX_OPCODE: {
-                dgr_parse_auth_status_msg(om->om_data, om->om_len);
-                dgr_send_keep_alive_msg(conn_handle, 25);
+                ESP_LOGE(tag_gatt, "handle_rx: AuthStatus received.");
                 break;
             }
 
@@ -332,7 +322,17 @@ dgr_read_auth_challenge_cb(uint16_t conn_handle, const struct ble_gatt_error *er
 
     dgr_print_cb_info(error, attr);
     if(attr && attr->om) {
+        bool correct_token = true;
+
         dgr_print_rx_packet(attr->om);
+        dgr_parse_auth_challenge_msg(attr->om->om_data, attr->om->om_len, &correct_token);
+
+        if(correct_token) {
+            dgr_send_auth_challenge_msg(conn_handle);
+        } else {
+            ESP_LOGE(tag_gatt, "Received encrypted token does not have the expected value.");
+            dgr_print_token_details();
+        }
     } else {
         ESP_LOGE(tag_gatt, "[02] AuthChallenge: mbuf not initialized");
     }
@@ -356,9 +356,11 @@ dgr_read_auth_status_cb(uint16_t conn_handle, const struct ble_gatt_error *error
 
     dgr_print_cb_info(error, attr);
     if(attr && attr->om) {
+        dgr_parse_auth_status_msg(attr->om->om_data, attr->om->om_len);
+        dgr_send_keep_alive_msg(conn_handle, 25);
         dgr_print_rx_packet(attr->om);
     } else {
-        ESP_LOGE(tag_gatt, "[04] AuthStatus: mbuf not initialized");
+        ESP_LOGE(tag_gatt, "[04] AuthStatus: read callback: mbuf not initialized");
     }
     return 0;
 }

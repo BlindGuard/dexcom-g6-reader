@@ -17,13 +17,22 @@ void
 dgr_encrypt(unsigned char in_bytes[8], unsigned char out_bytes[8]) {
     unsigned char aes_in[16];
     unsigned char aes_out[16];
+    int rc;
 
     for(int i = 0; i < 8; i++) {
         aes_in[i] = in_bytes[i];
-        aes_in[i+8] = in_bytes[i];
+        aes_in[i + 8] = in_bytes[i];
     }
 
-    mbedtls_aes_crypt_ecb(&aes_ecb_ctx, MBEDTLS_AES_ENCRYPT, aes_in, aes_out);
+    rc = mbedtls_aes_crypt_ecb(&aes_ecb_ctx, MBEDTLS_AES_ENCRYPT, aes_in, aes_out);
+    if(rc != 0) {
+        ESP_LOGE(tag_msg, "Error while encrypting. rc = %d", rc);
+    }
+
+    ESP_LOGI(tag_msg, "AES INPUT:");
+    ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, aes_in, 16, ESP_LOG_INFO);
+    ESP_LOGI(tag_msg, "AES_OUTPUT:");
+    ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, aes_out, 16, ESP_LOG_INFO);
 
     for(int i = 0; i < 8; i++) {
         out_bytes[i] = aes_out[i];
@@ -71,14 +80,18 @@ dgr_build_auth_challenge_msg(struct os_mbuf *om) {
     int rc;
 
     if(om) {
-        msg[0] = AUTH_CHALLENGE_TX_OPCODE;
+        msg[8] = AUTH_CHALLENGE_TX_OPCODE;
 
         dgr_encrypt(challenge_bytes, enc_challenge);
 
         for(int i = 0; i < 8; i++) {
-            msg[i + 1]  = enc_challenge[i];
+            msg[i]  = enc_challenge[i];
         }
 
+        ESP_LOGI(tag_msg, "challenge           :");
+        ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, challenge_bytes, 8, ESP_LOG_INFO);
+        ESP_LOGI(tag_msg, "encrypted challenge :");
+        ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, enc_challenge, 8, ESP_LOG_INFO);
         rc = os_mbuf_copyinto(om, 0, msg, 9);
         if(rc != 0) {
             ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = %d", rc);
@@ -92,8 +105,8 @@ dgr_build_keep_alive_msg(struct os_mbuf *om, uint8_t time) {
     int rc;
 
     if(om) {
-        msg[0] = KEEP_ALIVE_TX_OPCODE;
-        msg[1] = time;
+        msg[1] = KEEP_ALIVE_TX_OPCODE;
+        msg[0] = time;
 
         rc = os_mbuf_copyinto(om, 0, msg, 2);
         if(rc != 0) {
@@ -115,6 +128,7 @@ dgr_build_bond_request_msg(struct os_mbuf *om) {
     }
 }
 
+/* ------------------------------------------------------------------------- */
 
 void
 dgr_parse_auth_challenge_msg(uint8_t *data, uint8_t length, bool *correct_token) {
@@ -122,7 +136,7 @@ dgr_parse_auth_challenge_msg(uint8_t *data, uint8_t length, bool *correct_token)
         for(int i = 0; i < 8; i++) {
             challenge_bytes[i] = data[i + 9];
 
-            *correct_token = (data[i + 1] == enc_token_bytes[i]);
+            *correct_token = *correct_token && (data[i + 1] == enc_token_bytes[i]);
         }
     } else {
         ESP_LOGE(tag_msg, "Received AuthChallenge message has wrong length(%d).", length);
@@ -165,10 +179,18 @@ dgr_create_mbuf_pool() {
 
 void
 dgr_create_crypto_context() {
+    key[0] = 0x30;
+    key[1] = 0x30;
+    key[8] = 0x30;
+    key[9] = 0x30;
+
     for(int i = 0; i < 6; i++) {
         key[i + 2] = transmitter_id[i];
         key[i + 10] = transmitter_id[i];
     }
+
+    ESP_LOGI(tag_msg, "AES key :");
+    ESP_LOG_BUFFER_HEXDUMP(tag_msg, key, 16, ESP_LOG_INFO);
 
     mbedtls_aes_init(&aes_ecb_ctx);
     mbedtls_aes_setkey_enc(&aes_ecb_ctx, key, 128);
