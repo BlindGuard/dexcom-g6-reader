@@ -60,8 +60,11 @@ dgr_build_auth_request_msg(struct os_mbuf *om) {
 
         dgr_encrypt(token_bytes, enc_token_bytes);
 
-        msg[9] = AUTH_REQUEST_TX_OPCODE;
-        msg[0] = 0x2;
+        msg[0] = AUTH_REQUEST_TX_OPCODE;
+        // alt bt channel
+        msg[9] = 0x1;
+        // std bt channel
+        //msg[0] = 0x2;
 
         rc = os_mbuf_copyinto(om, 0, msg, 10);
         if(rc != 0) {
@@ -80,12 +83,12 @@ dgr_build_auth_challenge_msg(struct os_mbuf *om) {
     int rc;
 
     if(om) {
-        msg[8] = AUTH_CHALLENGE_TX_OPCODE;
+        msg[0] = AUTH_CHALLENGE_TX_OPCODE;
 
         dgr_encrypt(challenge_bytes, enc_challenge);
 
         for(int i = 0; i < 8; i++) {
-            msg[i]  = enc_challenge[i];
+            msg[i + 1]  = enc_challenge[i];
         }
 
         ESP_LOGI(tag_msg, "challenge           :");
@@ -105,8 +108,8 @@ dgr_build_keep_alive_msg(struct os_mbuf *om, uint8_t time) {
     int rc;
 
     if(om) {
-        msg[1] = KEEP_ALIVE_TX_OPCODE;
-        msg[0] = time;
+        msg[0] = KEEP_ALIVE_TX_OPCODE;
+        msg[1] = time;
 
         rc = os_mbuf_copyinto(om, 0, msg, 2);
         if(rc != 0) {
