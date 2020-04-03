@@ -356,9 +356,9 @@ dgr_read_auth_status_cb(uint16_t conn_handle, const struct ble_gatt_error *error
 
     dgr_print_cb_info(error, attr);
     if(attr && attr->om) {
+        dgr_print_rx_packet(attr->om);
         dgr_parse_auth_status_msg(attr->om->om_data, attr->om->om_len);
         dgr_send_keep_alive_msg(conn_handle, 25);
-        dgr_print_rx_packet(attr->om);
     } else {
         ESP_LOGE(tag_gatt, "[04] AuthStatus: read callback: mbuf not initialized");
     }
@@ -381,6 +381,5 @@ dgr_send_bond_request_cb(uint16_t conn_handle, const struct ble_gatt_error *erro
     ESP_LOGI(tag_gatt, "[06] BondRequest: write callback.");
 
     dgr_print_cb_info(error, attr);
-    dgr_send_notification_enable_msg(conn_handle);
     return 0;
 }

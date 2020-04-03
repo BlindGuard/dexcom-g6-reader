@@ -166,6 +166,13 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
                        event->disconnect.conn.conn_handle, event->disconnect.reason);
             return 0;
 
+
+	    case BLE_GAP_EVENT_ENC_CHANGE:
+	        ESP_LOGI(tag, "Encryption changed: handle = %d, status = 0x%04x",
+	            event->enc_change.conn_handle, event->enc_change.status);
+            dgr_send_notification_enable_msg(event->enc_change.conn_handle);
+	        return 0;
+
 		default:
 			ESP_LOGI(tag, "Not processed event with type: %d", event->type);
 			return 0;

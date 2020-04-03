@@ -65,6 +65,7 @@ int dgr_find_in_list(list *l, const ble_uuid_t *uuid, struct ble_gatt_chr *out);
 void dgr_print_list(list *l);
 
 /**  messages.c **/
+void dgr_send_notification_enable_msg(uint16_t conn_handle);
 void dgr_build_auth_request_msg(struct os_mbuf *om);
 void dgr_build_auth_challenge_msg(struct os_mbuf *om);
 void dgr_build_keep_alive_msg(struct os_mbuf *om, uint8_t time);
