@@ -20,8 +20,15 @@ const ble_uuid128_t authentication_uuid =
     BLE_UUID128_INIT(0xa5, 0x4e, 0x6a, 0xf8, 0xf1, 0x30, 0x94, 0xc5,
                      0x1c, 0x53, 0x9e, 0x84, 0x35, 0x35, 0x08, 0xf8);
 
-list characteristics = {.head = NULL, .length = 0};
+//list characteristics = {.head = NULL, .length = 0};
+list services = {NULL, NULL, 0};
+list characteristics = {NULL, NULL, 0};
+list descriptors = {NULL, NULL, 0};
 
+// ble_gatt_dsc_fn
+int
+dgr_discover_dsc_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+                    uint16_t chr_val_handle, const struct ble_gatt_dsc *dsc, void *arg);
 // ble_gatt_disc_svc_fn
 int dgr_discover_service_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
                             const struct ble_gatt_svc *service, void *arg);
@@ -50,12 +57,30 @@ void
 dgr_send_keep_alive_msg(uint16_t conn_handle, uint8_t time);
 
 void
-dgr_discover_services(uint16_t conn_handle) {
-    int rc;
+dgr_discover_characteristics(uint16_t conn_handle) {
+    int rc = ble_gattc_disc_all_chrs(conn_handle, 1, 65535, dgr_discover_chr_cb, NULL);
 
-    rc = ble_gattc_disc_all_chrs(conn_handle, 1, 65535, dgr_discover_chr_cb, NULL);
     if (rc != 0) {
-        ESP_LOGE(tag_gatt, "Error calling service discovery. rc = %d", rc);
+        ESP_LOGE(tag_gatt, "Error calling characteristics discovery. rc = 0x%x", rc);
+    }
+}
+
+void
+dgr_discover_descriptors(uint16_t conn_handle) {
+    int rc = ble_gattc_disc_all_dscs(conn_handle, 1, 65535, dgr_discover_dsc_cb, NULL);
+
+    if(rc != 0) {
+        ESP_LOGE(tag_gatt, "Error calling descriptor discovery. rc = 0x%x", rc);
+    }
+}
+
+void
+dgr_discover_services(uint16_t conn_handle) {
+    //rc = ble_gattc_disc_all_chrs(conn_handle, 1, 65535, dgr_discover_chr_cb, NULL);
+    int rc = ble_gattc_disc_all_svcs(conn_handle, dgr_discover_service_cb, NULL);
+
+    if (rc != 0) {
+        ESP_LOGE(tag_gatt, "Error calling service discovery. rc = 0x%x", rc);
     }
 }
 
@@ -106,7 +131,7 @@ dgr_send_notification_enable_msg(uint16_t conn_handle) {
     uint16_t handle = 0;
     int rc;
 
-    dgr_find_in_list(&characteristics, &control_uuid.u, &uh);
+    dgr_find_chr_by_uuid(&characteristics, &control_uuid.u, &uh);
     if(uh.val_handle != 0) {
         handle = uh.val_handle;
 
@@ -127,7 +152,7 @@ dgr_write_auth_char(uint16_t conn_handle, ble_gatt_attr_fn *cb, struct os_mbuf *
     uint16_t auth_attr_handle;
     struct ble_gatt_chr uh;
 
-    dgr_find_in_list(&characteristics, &authentication_uuid.u, &uh);
+    dgr_find_chr_by_uuid(&characteristics, &authentication_uuid.u, &uh);
 
     if(uh.val_handle != 0) {
         auth_attr_handle = uh.val_handle;
@@ -195,7 +220,7 @@ dgr_read_auth_char(uint16_t conn_handle, ble_gatt_attr_fn *cb) {
     int rc;
     struct ble_gatt_chr uh;
 
-    rc = dgr_find_in_list(&characteristics, &authentication_uuid.u, &uh);
+    rc = dgr_find_chr_by_uuid(&characteristics, &authentication_uuid.u, &uh);
 
     if(rc == 0) {
         rc = ble_gattc_read(conn_handle, uh.val_handle, cb, NULL);
@@ -224,28 +249,36 @@ dgr_read_auth_status_msg(uint16_t conn_handle) {
 /*****************************************************************************
  * callbacks                                                                 *
  *****************************************************************************/
+void
+dgr_print_cb_info(const struct ble_gatt_error *error, struct ble_gatt_attr *attr) {
+    if(error != NULL) {
+        ESP_LOGI(tag_gatt, "\tstatus      = 0x%x", error->status);
+        ESP_LOGI(tag_gatt, "\tatt_handle  = %d", error->att_handle);
+    }
+    if(attr != NULL) {
+        ESP_LOGI(tag_gatt, "\tattr_handle = %d", attr->handle);
+        ESP_LOGI(tag_gatt, "\toffset      = %d", attr->offset);
+    }
+}
 
 int
 dgr_discover_service_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
         const struct ble_gatt_svc *service, void *arg) {
     if(error->status == BLE_HS_EDONE) {
-        ESP_LOGI(tag_gatt, "Service discovery finished.");
+        ESP_LOGI(tag_gatt, "Service discovery : finished.");
+        dgr_discover_descriptors(conn_handle);
     } else {
-        char buf[BLE_UUID_STR_LEN];
-        ble_uuid_to_str(&service->uuid.u, buf);
-        ESP_LOGI(tag_gatt, "Service discovery: status=%d, att_handle=%d, uuid = %s",
-                 error->status, error->att_handle, buf);
+        ESP_LOGI(tag_gatt, "Service discovery : status=%d, att_handle=%d",
+                 error->status, error->att_handle);
 
         if (service != NULL) {
-            int rc = ble_gattc_disc_all_chrs(conn_handle, service->start_handle,
-                                         service->end_handle, dgr_discover_chr_cb, NULL);
-            if (rc != 0) {
-                ESP_LOGE(tag_gatt, "Error calling characteristics discovery. rc = %d", rc);
-            }
+            list_elm *le = dgr_create_svc_list_elm(*service);
+            //dgr_print_list_elm(le);
 
-            return rc;
+            dgr_add_to_list(&services, le);
+            return 0;
         } else {
-            ESP_LOGE(tag_gatt, "Discover Service callback: Service is NULL");
+            ESP_LOGE(tag_gatt, "Service discovery : Service is NULL");
         }
     }
 
@@ -258,24 +291,19 @@ dgr_discover_chr_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
     if(error->status == BLE_HS_EDONE) {
         ESP_LOGI(tag_gatt, "Characteristics discovery: finished.");
 
+        dgr_print_list(&services);
         dgr_print_list(&characteristics);
+        dgr_print_list(&descriptors);
+
         dgr_send_auth_request_msg(conn_handle);
     } else {
-        //char buf[BLE_UUID_STR_LEN];
-
         ESP_LOGI(tag_gatt, "Characteristics discovery: status = %d, att_handle = %d",
                  error->status, error->att_handle);
         if (chr != NULL) {
-            /*
-            ESP_LOGI(tag_gatt, "Characteristic:");
-            ESP_LOGI(tag_gatt, "\tdef_handle = %d", chr->def_handle);
-            ESP_LOGI(tag_gatt, "\tval_handle = %d", chr->val_handle);
-            ESP_LOGI(tag_gatt, "\tproperties = %d", chr->properties);
-            ble_uuid_to_str(&chr->uuid.u, buf);
-            ESP_LOGI(tag_gatt, "\tuuid       = %s", buf);
-             */
+            list_elm *le = dgr_create_chr_list_elm(*chr);
+            //dgr_print_list_elm(le);
 
-            dgr_add_to_list(&characteristics, chr);
+            dgr_add_to_list(&characteristics, le);
         } else {
             ESP_LOGE(tag_gatt, "Characteristics discovery: characteristic is NULL");
         }
@@ -284,16 +312,25 @@ dgr_discover_chr_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
     return 0;
 }
 
-void
-dgr_print_cb_info(const struct ble_gatt_error *error, struct ble_gatt_attr *attr) {
-    if(error != NULL) {
-        ESP_LOGI(tag_gatt, "\tstatus      = 0x%x", error->status);
-        ESP_LOGI(tag_gatt, "\tatt_handle  = %d", error->att_handle);
+int
+dgr_discover_dsc_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+        uint16_t chr_val_handle, const struct ble_gatt_dsc *dsc, void *arg) {
+    if(error->status == BLE_HS_EDONE) {
+        ESP_LOGI(tag_gatt, "Descriptor discovery: finished.");
+        dgr_discover_characteristics(conn_handle);
+    } else {
+        ESP_LOGI(tag_gatt, "Descriptor discovery: status = %d, att_handle = %d",
+                error->status, error->att_handle);
+
+        if(dsc != NULL) {
+            list_elm *le = dgr_create_dsc_list_elm(*dsc);
+            //dgr_print_list_elm(le);
+
+            dgr_add_to_list(&descriptors, le);
+        }
     }
-    if(attr != NULL) {
-        ESP_LOGI(tag_gatt, "\tattr_handle = %d", attr->handle);
-        ESP_LOGI(tag_gatt, "\toffset      = %d", attr->offset);
-    }
+
+    return 0;
 }
 
 int

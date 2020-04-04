@@ -2,6 +2,7 @@
 #include "host/ble_gatt.h"
 #include "host/ble_hs_adv.h"
 #include "os/os.h"
+#include "sys/queue.h"
 
 // Opcodes
 #define AUTH_REQUEST_TX_OPCODE      0x1
@@ -38,15 +39,26 @@ struct os_mbuf_pool dgr_mbuf_pool;
 struct os_mempool dgr_mbuf_mempool;
 os_membuf_t dgr_mbuf_buffer[MBUF_MEMPOOL_SIZE];
 
-/** list for characteristics */
-typedef struct list_element {
-    struct list_element *next;
-    struct ble_gatt_chr data;
-} list_element;
+/** list for services/characteristics/descriptors */
+typedef enum {
+    chr_lst_elm,
+    dsc_lst_elm,
+    svc_lst_elm
+} list_elm_type;
+
+typedef struct list_elm {
+    list_elm_type type;
+    struct list_elm *next;
+    union {
+        struct ble_gatt_chr chr;
+        struct ble_gatt_dsc dsc;
+        struct ble_gatt_svc svc;
+    };
+} list_elm;
 
 typedef struct list {
-    list_element *head;
-    list_element *tail;
+    list_elm *head;
+    list_elm *tail;
     int length;
 } list;
 
@@ -59,10 +71,14 @@ void dgr_print_rx_packet(struct os_mbuf *om);
 void dgr_discover_services(uint16_t conn_handle);
 void dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle);
 
-/**  characteristics.c */
-void dgr_add_to_list(list *l, const struct ble_gatt_chr *in);
-int dgr_find_in_list(list *l, const ble_uuid_t *uuid, struct ble_gatt_chr *out);
+/**  gatt_lists.c */
+list_elm* dgr_create_svc_list_elm(struct ble_gatt_svc svc);
+list_elm* dgr_create_dsc_list_elm(struct ble_gatt_dsc dsc);
+list_elm* dgr_create_chr_list_elm(struct ble_gatt_chr chr);
+void dgr_add_to_list(list *l, list_elm *le);
+int dgr_find_chr_by_uuid(list *l, const ble_uuid_t *uuid, struct ble_gatt_chr *out);
 void dgr_print_list(list *l);
+void dgr_print_list_elm(list_elm *le);
 
 /**  messages.c **/
 void dgr_send_notification_enable_msg(uint16_t conn_handle);
