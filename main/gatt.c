@@ -126,7 +126,10 @@ dgr_send_notification_enable_msg(uint16_t conn_handle) {
     // enable notifications by writing two bytes (1, 0) to
     // the CCCD (==control_uuid ?)
     // TODO: find right handle?
-    uint8_t data[2] = {1, 0};
+    // notification
+    //uint8_t data[2] = {1, 0};
+    // indication
+    uint8_t data[2] = {0, 1};
     struct ble_gatt_chr uh;
     uint16_t handle = 0;
     int rc;
