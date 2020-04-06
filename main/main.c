@@ -36,6 +36,13 @@ dgr_check_conn_candidate(struct ble_hs_adv_fields *adv_fields) {
 }
 
 void
+dgr_reset_state() {
+    dgr_clear_list(&characteristics);
+    dgr_clear_list(&services);
+    dgr_clear_list(&descriptors);
+}
+
+void
 dgr_connect(const struct ble_gap_disc_desc *disc) {
     int rc;
 
@@ -164,6 +171,10 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	    case BLE_GAP_EVENT_DISCONNECT:
 	        ESP_LOGI(tag, "Disconnect: handle = %d, reason = 0x%04x",
                        event->disconnect.conn.conn_handle, event->disconnect.reason);
+
+	        // restart scan
+	        dgr_reset_state();
+	        dgr_start_scan();
             return 0;
 
 

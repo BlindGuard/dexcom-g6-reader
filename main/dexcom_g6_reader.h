@@ -62,6 +62,10 @@ typedef struct list {
     int length;
 } list;
 
+list services;
+list characteristics;
+list descriptors;
+
 /**  util.c **/
 char* addr_to_string(const void *addr);
 void print_adv_fields(struct ble_hs_adv_fields *adv_fields);
@@ -72,6 +76,7 @@ void dgr_discover_services(uint16_t conn_handle);
 void dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle);
 
 /**  gatt_lists.c */
+void dgr_clear_list(list *l);
 list_elm* dgr_create_svc_list_elm(struct ble_gatt_svc svc);
 list_elm* dgr_create_dsc_list_elm(struct ble_gatt_dsc dsc);
 list_elm* dgr_create_chr_list_elm(struct ble_gatt_chr chr);

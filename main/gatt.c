@@ -136,7 +136,7 @@ dgr_send_notification_enable_msg(uint16_t conn_handle) {
 
     dgr_find_chr_by_uuid(&characteristics, &control_uuid.u, &uh);
     if(uh.val_handle != 0) {
-        handle = uh.val_handle;
+        handle = uh.val_handle + 1; // cccd lies directly after the corresponding characteristic
 
         ESP_LOGI(tag_gatt, "[07] Enabling notifications.");
         rc = ble_gattc_write_flat(conn_handle, handle, data, sizeof data, dgr_write_attr_cb, NULL);
