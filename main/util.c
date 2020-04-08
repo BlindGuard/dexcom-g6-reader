@@ -121,3 +121,14 @@ void dgr_print_rx_packet(struct os_mbuf *om) {
         }
     }*/
 }
+
+uint32_t
+make_u32_from_bytes_le(const uint8_t *bytes) {
+    return bytes[0] | (uint32_t) bytes[1] << 8
+        | (uint32_t) bytes[2] << 16 | (uint32_t) bytes[3] << 24;
+}
+
+uint16_t
+make_u16_from_bytes_le(const uint8_t *bytes) {
+    return bytes[0] | (uint16_t) bytes[1] << 8;
+}

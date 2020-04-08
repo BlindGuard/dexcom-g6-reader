@@ -1,6 +1,7 @@
 #include "host/ble_uuid.h"
 #include "esp_system.h"
 #include "mbedtls/aes.h"
+#include "esp32/rom/crc.h"
 
 #include "dexcom_g6_reader.h"
 
@@ -14,7 +15,7 @@ mbedtls_aes_context aes_ecb_ctx;
 unsigned char key[16];
 
 void
-dgr_encrypt(unsigned char in_bytes[8], unsigned char out_bytes[8]) {
+dgr_encrypt(const unsigned char in_bytes[8], unsigned char out_bytes[8]) {
     unsigned char aes_in[16];
     unsigned char aes_out[16];
     int rc;
@@ -29,10 +30,10 @@ dgr_encrypt(unsigned char in_bytes[8], unsigned char out_bytes[8]) {
         ESP_LOGE(tag_msg, "Error while encrypting. rc = %d", rc);
     }
 
-    ESP_LOGI(tag_msg, "AES INPUT:");
-    ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, aes_in, 16, ESP_LOG_INFO);
-    ESP_LOGI(tag_msg, "AES_OUTPUT:");
-    ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, aes_out, 16, ESP_LOG_INFO);
+    //ESP_LOGI(tag_msg, "AES INPUT:");
+    //ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, aes_in, 16, ESP_LOG_INFO);
+    //ESP_LOGI(tag_msg, "AES_OUTPUT:");
+    //ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, aes_out, 16, ESP_LOG_INFO);
 
     for(int i = 0; i < 8; i++) {
         out_bytes[i] = aes_out[i];
@@ -40,7 +41,7 @@ dgr_encrypt(unsigned char in_bytes[8], unsigned char out_bytes[8]) {
 }
 
 /*****************************************************************************
- *  Messages                                                                 *
+ *  messages                                                                 *
  *****************************************************************************/
 
 void
@@ -131,10 +132,30 @@ dgr_build_bond_request_msg(struct os_mbuf *om) {
     }
 }
 
-/* ------------------------------------------------------------------------- */
+void
+dgr_build_glucose_tx_msg(struct os_mbuf *om) {
+    uint8_t msg[3];
+    uint16_t crc;
+    int rc;
+
+    msg[0] = GLUCOSE_TX_OPCODE;
+    crc = ~crc16_be((uint16_t)~0x0000, msg, 1);
+    // write crc as little-endian
+    msg[1] = crc;
+    msg[2] = crc >> 8;
+
+    if(om) {
+        rc = os_mbuf_copyinto(om, 0, msg, 3);
+        if(rc != 0) {
+            ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = 0x%04x", rc);
+        }
+    }
+}
+
+/* parsing ----------------------------------------------------------------- */
 
 void
-dgr_parse_auth_challenge_msg(uint8_t *data, uint8_t length, bool *correct_token) {
+dgr_parse_auth_challenge_msg(const uint8_t *data, uint8_t length, bool *correct_token) {
     if(length == 17) {
         for(int i = 0; i < 8; i++) {
             challenge_bytes[i] = data[i + 9];
@@ -147,7 +168,7 @@ dgr_parse_auth_challenge_msg(uint8_t *data, uint8_t length, bool *correct_token)
 }
 
 void
-dgr_parse_auth_status_msg(uint8_t *data, uint8_t length) {
+dgr_parse_auth_status_msg(const uint8_t *data, uint8_t length) {
     if(length == 3) {
         authentication_status = data[1];
         bond_status = data[2];
@@ -155,6 +176,30 @@ dgr_parse_auth_status_msg(uint8_t *data, uint8_t length) {
         ESP_LOGI(tag_msg, "[04] AuthStatus: auth = %d, bond = %d", authentication_status, bond_status);
     } else {
         ESP_LOGE(tag_msg, "Received AuthStatus message has wrong length(%d).", length);
+    }
+}
+
+void
+dgr_parse_glucose_msg(const uint8_t *data, uint8_t length) {
+    if(length >= 16) {
+        uint8_t status = data[1];
+        uint32_t sequence = make_u32_from_bytes_le(&data[2]);
+        uint32_t timestamp = make_u32_from_bytes_le(&data[6]);
+        uint16_t glucose = make_u16_from_bytes_le(&data[10]) | 0xfff;
+        uint8_t state = data[12];
+        uint8_t trend = data[13];
+        uint16_t crc = make_u16_from_bytes_le(&data[14]);
+        uint16_t crc_calc = ~crc16_be((uint16_t)~0x0000, data, 14);
+
+        ESP_LOGI(tag_msg, "[=========== GlucoseRx ===========]");
+        ESP_LOGI(tag_msg, "\tstatus = 0x%x, state = 0x%x, trend = 0x%x", status, state, trend);
+        ESP_LOGI(tag_msg, "\tsequence = 0x%x", sequence);
+        ESP_LOGI(tag_msg, "\ttimestamp = 0x%x", timestamp);
+        ESP_LOGI(tag_msg, "\tglucose = 0x%x", glucose);
+        ESP_LOGI(tag_msg, "\treceived crc = 0x%02x, calculated crc = 0x%02x", crc, crc_calc);
+        //TODO: something to store readings
+    } else {
+        ESP_LOGE(tag_msg, "Received GlucoseRx message has wrong length(%d).", length);
     }
 }
 

@@ -70,6 +70,8 @@ list descriptors;
 char* addr_to_string(const void *addr);
 void print_adv_fields(struct ble_hs_adv_fields *adv_fields);
 void dgr_print_rx_packet(struct os_mbuf *om);
+uint32_t make_u32_from_bytes_le(const uint8_t *bytes);
+uint16_t make_u16_from_bytes_le(const uint8_t *bytes);
 
 /**  gatt.c **/
 void dgr_discover_services(uint16_t conn_handle);
@@ -91,8 +93,10 @@ void dgr_build_auth_request_msg(struct os_mbuf *om);
 void dgr_build_auth_challenge_msg(struct os_mbuf *om);
 void dgr_build_keep_alive_msg(struct os_mbuf *om, uint8_t time);
 void dgr_build_bond_request_msg(struct os_mbuf *om);
-void dgr_parse_auth_challenge_msg(uint8_t *data, uint8_t length, bool *correct_token);
-void dgr_parse_auth_status_msg(uint8_t *data, uint8_t length);
+void dgr_build_glucose_tx_msg(struct os_mbuf *om);
+void dgr_parse_auth_challenge_msg(const uint8_t *data, uint8_t length, bool *correct_token);
+void dgr_parse_auth_status_msg(const uint8_t *data, uint8_t length);
+void dgr_parse_glucose_msg(const uint8_t *data, uint8_t length);
 void dgr_create_mbuf_pool();
 void dgr_create_crypto_context();
 void dgr_print_token_details();

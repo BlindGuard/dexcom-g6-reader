@@ -50,6 +50,10 @@ int dgr_send_keep_alive_cb(uint16_t conn_handle, const struct ble_gatt_error *er
     struct ble_gatt_attr *attr, void *arg);
 int dgr_send_bond_request_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
     struct ble_gatt_attr *attr, void *arg);
+int dgr_send_glucose_tx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+    struct ble_gatt_attr *attr, void *arg);
+int dgr_send_notification_enable_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+    struct ble_gatt_attr *attr, void *arg);
 
 void
 dgr_send_auth_challenge_msg(uint16_t conn_handle);
@@ -103,8 +107,9 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
             }
 
             case GLUCOSE_RX_OPCODE: {
-                //dgr_parse_glucose_msg();
                 ESP_LOGI(tag_gatt, "Received glucose message.");
+
+                dgr_parse_glucose_msg(om->om_data, om->om_len);
                 break;
             }
 
@@ -124,12 +129,12 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
 void
 dgr_send_notification_enable_msg(uint16_t conn_handle) {
     // enable notifications by writing two bytes (1, 0) to
-    // the CCCD (==control_uuid ?)
-    // TODO: find right handle?
-    // notification
-    //uint8_t data[2] = {1, 0};
+    // the CCCD of control_uuid)
+
     // indication
-    uint8_t data[2] = {0, 1};
+    uint8_t data[2] = {1, 0};
+    // notification
+    //uint8_t data[2] = {0, 1};
     struct ble_gatt_chr uh;
     uint16_t handle = 0;
     int rc;
@@ -139,7 +144,8 @@ dgr_send_notification_enable_msg(uint16_t conn_handle) {
         handle = uh.val_handle + 1; // cccd lies directly after the corresponding characteristic
 
         ESP_LOGI(tag_gatt, "[07] Enabling notifications.");
-        rc = ble_gattc_write_flat(conn_handle, handle, data, sizeof data, dgr_write_attr_cb, NULL);
+        rc = ble_gattc_write_flat(conn_handle, handle, data, sizeof data,
+            dgr_send_notification_enable_msg_cb, NULL);
         if (rc != 0) {
             ESP_LOGE(tag_gatt, "Error while enabling notifications. handle = %d, rc = %d",
                      handle, rc);
@@ -162,11 +168,32 @@ dgr_write_auth_char(uint16_t conn_handle, ble_gatt_attr_fn *cb, struct os_mbuf *
 
         rc = ble_gattc_write(conn_handle, auth_attr_handle, om, cb, NULL);
         if(rc != 0) {
-            ESP_LOGE(tag_gatt, "Error while writing characteristic. handle = %d, rc = %d",
+            ESP_LOGE(tag_gatt, "Error while writing characteristic. handle = 0x%04x, rc = 0x%04x",
                 auth_attr_handle, rc);
         }
     } else {
         ESP_LOGE(tag_gatt, "Could not find val_handle for authentication uuid.");
+    }
+}
+
+void
+dgr_write_control_char(uint16_t conn_handle, ble_gatt_attr_fn *cb, struct os_mbuf *om) {
+    int rc;
+    uint16_t cont_attr_handle;
+    struct ble_gatt_chr uh;
+
+    rc = dgr_find_chr_by_uuid(&characteristics, &control_uuid.u, &uh);
+
+    if(rc == 0) {
+        cont_attr_handle = uh.val_handle;
+
+        rc = ble_gattc_write(conn_handle, cont_attr_handle, om, cb, NULL);
+        if(rc != 0) {
+            ESP_LOGE(tag_gatt, "Error while writing characteristic. handle = 0x%04x, rc = 0x%04x",
+                cont_attr_handle, rc);
+        }
+    } else {
+        ESP_LOGE(tag_gatt, "Could not find val_handle for control uuid.");
     }
 }
 
@@ -214,6 +241,17 @@ dgr_send_auth_challenge_msg(uint16_t conn_handle) {
     }
 }
 
+void
+dgr_send_glucose_tx_msg(uint16_t conn_handle) {
+    struct os_mbuf *om = os_mbuf_get_pkthdr(&dgr_mbuf_pool, 0);
+
+    if(om) {
+        dgr_build_glucose_tx_msg(om);
+        ESP_LOGI(tag_gatt, "[08] GlucoseTx: sending message");
+        dgr_write_control_char(conn_handle, dgr_send_glucose_tx_msg_cb, om);
+    }
+}
+
 
 /*****************************************************************************
  * reading                                                                   *
@@ -256,10 +294,10 @@ void
 dgr_print_cb_info(const struct ble_gatt_error *error, struct ble_gatt_attr *attr) {
     if(error != NULL) {
         ESP_LOGI(tag_gatt, "\tstatus      = 0x%x", error->status);
-        ESP_LOGI(tag_gatt, "\tatt_handle  = %d", error->att_handle);
+        ESP_LOGI(tag_gatt, "\tatt_handle  = 0x%x", error->att_handle);
     }
     if(attr != NULL) {
-        ESP_LOGI(tag_gatt, "\tattr_handle = %d", attr->handle);
+        ESP_LOGI(tag_gatt, "\tattr_handle = 0x%x", attr->handle);
         ESP_LOGI(tag_gatt, "\toffset      = %d", attr->offset);
     }
 }
@@ -421,5 +459,24 @@ dgr_send_bond_request_cb(uint16_t conn_handle, const struct ble_gatt_error *erro
     ESP_LOGI(tag_gatt, "[06] BondRequest: write callback.");
 
     dgr_print_cb_info(error, attr);
+    return 0;
+}
+
+int
+dgr_send_glucose_tx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+        struct ble_gatt_attr *attr, void *arg) {
+    ESP_LOGI(tag_gatt, "[08] GlucoseTx: write callback");
+
+    dgr_print_cb_info(error, attr);
+    return 0;
+}
+
+int
+dgr_send_notification_enable_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+        struct ble_gatt_attr *attr, void *arg) {
+    ESP_LOGI(tag_gatt, "[07] Enabling notifications: write callback.");
+
+    dgr_print_cb_info(error, attr);
+    dgr_send_glucose_tx_msg(conn_handle);
     return 0;
 }
