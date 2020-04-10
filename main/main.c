@@ -12,6 +12,9 @@
 
 #include "dexcom_g6_reader.h"
 
+#define MAXIMUM_CONN_ATTEMPTS   5
+
+static int counter = 0;
 static const char *tag = "[Dexcom-G6-Reader][main]";
 const char *transmitter_id = "812345";
 
@@ -87,6 +90,11 @@ dgr_start_scan(void) {
     struct ble_gap_disc_params disc_params;
     int rc;
 
+    if(counter > MAXIMUM_CONN_ATTEMPTS) {
+        ESP_LOGE(tag, "Maximum connection attempts reached(%d).", MAXIMUM_CONN_ATTEMPTS);
+        return;
+    }
+
     rc = ble_hs_id_infer_auto(1, &own_addr_type);
     if(rc != 0) {
         ESP_LOGE(tag, "Error while determining address type. rc = %d", rc);
@@ -113,6 +121,8 @@ int
 dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	switch(event->type) {
 	    case BLE_GAP_EVENT_CONNECT:
+	        counter++;
+
 	        // new connection established or connection attempt failed
 	        if(event->connect.status != 0) {
 	            // connection attempt failed
