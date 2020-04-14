@@ -185,17 +185,17 @@ dgr_parse_glucose_msg(const uint8_t *data, uint8_t length) {
         uint8_t status = data[1];
         uint32_t sequence = make_u32_from_bytes_le(&data[2]);
         uint32_t timestamp = make_u32_from_bytes_le(&data[6]);
-        uint16_t glucose = make_u16_from_bytes_le(&data[10]) | 0xfff;
+        uint16_t glucose = make_u16_from_bytes_le(&data[10]) & 0xfff;
         uint8_t state = data[12];
         uint8_t trend = data[13];
-        uint16_t crc = make_u16_from_bytes_le(&data[14]);
-        uint16_t crc_calc = ~crc16_be((uint16_t)~0x0000, data, 14);
+        uint16_t crc = make_u16_from_bytes_le(&data[length - 2]);
+        uint16_t crc_calc = ~crc16_be((uint16_t)~0x0000, data, length - 2);
 
         ESP_LOGI(tag_msg, "[=========== GlucoseRx ===========]");
-        ESP_LOGI(tag_msg, "\tstatus = 0x%x, state = 0x%x, trend = 0x%x", status, state, trend);
-        ESP_LOGI(tag_msg, "\tsequence = 0x%x", sequence);
+        ESP_LOGI(tag_msg, "\tstatus    = 0x%x, state = 0x%x, trend = 0x%x", status, state, trend);
+        ESP_LOGI(tag_msg, "\tsequence  = 0x%x", sequence);
         ESP_LOGI(tag_msg, "\ttimestamp = 0x%x", timestamp);
-        ESP_LOGI(tag_msg, "\tglucose = 0x%x", glucose);
+        ESP_LOGI(tag_msg, "\tglucose   = %d", glucose);
         ESP_LOGI(tag_msg, "\treceived crc = 0x%02x, calculated crc = 0x%02x", crc, crc_calc);
         //TODO: something to store readings
     } else {

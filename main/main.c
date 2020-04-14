@@ -1,5 +1,6 @@
 #include <host/ble_gap.h>
 #include "nvs_flash.h"
+#include <sys/time.h>
 
 // BLE
 #include "host/ble_hs.h"
@@ -12,11 +13,13 @@
 
 #include "dexcom_g6_reader.h"
 
-#define MAXIMUM_CONN_ATTEMPTS   5
+#define MAXIMUM_CONN_ATTEMPTS       5
+#define SLEEP_BETWEEN_CONNECTIONS   20  // in seconds
 
 static int counter = 0;
 static const char *tag = "[Dexcom-G6-Reader][main]";
 const char *transmitter_id = "812345";
+static struct timeval conn_time;
 
 int dgr_gap_event(struct ble_gap_event *event, void *arg);
 
@@ -89,6 +92,15 @@ dgr_start_scan(void) {
     uint8_t own_addr_type;
     struct ble_gap_disc_params disc_params;
     int rc;
+    struct timeval t_now;
+
+    // make sure we wait the required time between connection attempts
+    gettimeofday(&t_now, NULL);
+    time_t t_diff = t_now.tv_sec - conn_time.tv_sec;
+    if(counter > 0 && t_diff < SLEEP_BETWEEN_CONNECTIONS) {
+        ESP_LOGI(tag, "Waiting for %d seconds.", (uint32_t)t_diff);
+        vTaskDelay((t_diff * 1000)/portTICK_RATE_MS);
+    }
 
     if(counter > MAXIMUM_CONN_ATTEMPTS) {
         ESP_LOGE(tag, "Maximum connection attempts reached(%d).", MAXIMUM_CONN_ATTEMPTS);
@@ -122,6 +134,7 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	switch(event->type) {
 	    case BLE_GAP_EVENT_CONNECT:
 	        counter++;
+	        gettimeofday(&conn_time, NULL);
 
 	        // new connection established or connection attempt failed
 	        if(event->connect.status != 0) {

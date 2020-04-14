@@ -4,16 +4,18 @@ const char* tag_chrs = "[Dexcom-G6-Reader][lists]";
 
 void
 dgr_clear_list(list *l) {
-    list_elm *le = l->head;
+    if(l->head != NULL) {
+        list_elm *le = l->head;
 
-    while(true) {
-        if(le->next != NULL) {
-            list_elm *tmp = le;
-            le = le->next;
-            free(tmp);
-        } else {
-            free(le);
-            break;
+        while (true) {
+            if (le->next != NULL) {
+                list_elm *tmp = le;
+                le = le->next;
+                free(tmp);
+            } else {
+                free(le);
+                break;
+            }
         }
     }
 
