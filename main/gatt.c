@@ -25,36 +25,6 @@ list services = {NULL, NULL, 0};
 list characteristics = {NULL, NULL, 0};
 list descriptors = {NULL, NULL, 0};
 
-// ble_gatt_dsc_fn
-int
-dgr_discover_dsc_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-                    uint16_t chr_val_handle, const struct ble_gatt_dsc *dsc, void *arg);
-// ble_gatt_disc_svc_fn
-int dgr_discover_service_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-                            const struct ble_gatt_svc *service, void *arg);
-// ble_gatt_chr_fn
-int dgr_discover_chr_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-                        const struct ble_gatt_chr *chr, void *arg);
-// ble_gatt_attr_fn
-int dgr_write_attr_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-    struct ble_gatt_attr *attr, void *arg);
-int dgr_send_auth_request_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-    struct ble_gatt_attr *attr, void *arg);
-int dgr_read_auth_challenge_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-    struct ble_gatt_attr *attr, void *arg);
-int dgr_send_auth_challenge_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-    struct ble_gatt_attr *attr, void *arg);
-int dgr_read_auth_status_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-    struct ble_gatt_attr *attr, void *arg);
-int dgr_send_keep_alive_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-    struct ble_gatt_attr *attr, void *arg);
-int dgr_send_bond_request_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-    struct ble_gatt_attr *attr, void *arg);
-int dgr_send_glucose_tx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-    struct ble_gatt_attr *attr, void *arg);
-int dgr_send_notification_enable_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
-    struct ble_gatt_attr *attr, void *arg);
-
 void
 dgr_send_auth_challenge_msg(uint16_t conn_handle);
 void
@@ -96,16 +66,18 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
         dgr_print_rx_packet(om);
 
         switch(op) {
-            case AUTH_CHALLENGE_RX_OPCODE: {
-                ESP_LOGE(tag_gatt, "handle_rx: AuthChallenge received.");
+            case BACKFILL_RX_OPCODE: {
+                ESP_LOGI(tag_gatt, "Received backfill message.");
+
+                dgr_parse_backfill_msg(om->om_data, om->om_len);
                 break;
             }
+            case TIME_RX_OPCODE: {
+                ESP_LOGI(tag_gatt, "Received time message.");
 
-            case AUTH_STATUS_RX_OPCODE: {
-                ESP_LOGE(tag_gatt, "handle_rx: AuthStatus received.");
+                dgr_parse_time_msg(om->om_data, om->om_len);
                 break;
             }
-
             case GLUCOSE_RX_OPCODE: {
                 ESP_LOGI(tag_gatt, "Received glucose message.");
 
@@ -127,9 +99,8 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
  * message sending                                                           *
  *****************************************************************************/
 void
-dgr_send_notification_enable_msg(uint16_t conn_handle) {
-    // enable notifications by writing two bytes (1, 0) to
-    // the CCCD of control_uuid)
+dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid, ble_gatt_attr_fn *cb) {
+    // enable notifications/indications by writing to the CCCD of uuid
 
     // indication
     uint8_t data[2] = {1, 0};
@@ -137,15 +108,16 @@ dgr_send_notification_enable_msg(uint16_t conn_handle) {
     //uint8_t data[2] = {0, 1};
     struct ble_gatt_chr uh;
     uint16_t handle = 0;
+    char buf[BLE_UUID_STR_LEN];
     int rc;
 
-    dgr_find_chr_by_uuid(&characteristics, &control_uuid.u, &uh);
+    dgr_find_chr_by_uuid(&characteristics, uuid, &uh);
     if(uh.val_handle != 0) {
         handle = uh.val_handle + 1; // cccd lies directly after the corresponding characteristic
 
-        ESP_LOGI(tag_gatt, "[07] Enabling notifications.");
-        rc = ble_gattc_write_flat(conn_handle, handle, data, sizeof data,
-            dgr_send_notification_enable_msg_cb, NULL);
+        ble_uuid_to_str(uuid, buf);
+        ESP_LOGI(tag_gatt, "Enabling notifications for: %s.", buf);
+        rc = ble_gattc_write_flat(conn_handle, handle, data, sizeof data, cb, NULL);
         if (rc != 0) {
             ESP_LOGE(tag_gatt, "Error while enabling notifications. handle = %d, rc = %d",
                      handle, rc);
@@ -249,6 +221,28 @@ dgr_send_glucose_tx_msg(uint16_t conn_handle) {
         dgr_build_glucose_tx_msg(om);
         ESP_LOGI(tag_gatt, "[08] GlucoseTx: sending message");
         dgr_write_control_char(conn_handle, dgr_send_glucose_tx_msg_cb, om);
+    }
+}
+
+void
+dgr_send_time_tx_msg(uint16_t conn_handle) {
+    struct os_mbuf *om = os_mbuf_get_pkthdr(&dgr_mbuf_pool, 0);
+
+    if(om) {
+        dgr_build_time_tx_msg(om);
+        ESP_LOGI(tag_gatt, "TransmitterTime: sending message");
+        dgr_write_control_char(conn_handle, dgr_send_time_rx_msg_cb, om);
+    }
+}
+
+void
+dgr_send_backfill_tx_msg(uint16_t conn_handle) {
+    struct os_mbuf *om = os_mbuf_get_pkthdr(&dgr_mbuf_pool, 0);
+
+    if(om) {
+        dgr_build_backfill_tx_msg(om);
+        ESP_LOGI(tag_gatt, "Backfill: sending message");
+        dgr_write_control_char(conn_handle, dgr_send_backfill_tx_msg_cb, om);
     }
 }
 
@@ -478,5 +472,19 @@ dgr_send_notification_enable_msg_cb(uint16_t conn_handle, const struct ble_gatt_
 
     dgr_print_cb_info(error, attr);
     dgr_send_glucose_tx_msg(conn_handle);
+    return 0;
+}
+
+int
+dgr_send_time_rx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+        struct ble_gatt_attr *attr, void *arg) {
+    //TODO: control flow stuff
+    return 0;
+}
+
+int
+dgr_send_backfill_tx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+        struct ble_gatt_attr *attr, void *arg) {
+    //TODO: control flow stuff
     return 0;
 }

@@ -152,6 +152,43 @@ dgr_build_glucose_tx_msg(struct os_mbuf *om) {
     }
 }
 
+void
+dgr_build_backfill_tx_msg(struct os_mbuf *om) {
+    uint8_t msg[19];
+    uint16_t crc;
+    int rc;
+
+    msg[0] = BACKFILL_TX_OPCODE;
+    //TODO: fill message
+
+    if(om) {
+        rc = os_mbuf_copyinto(om, 0, msg, 19);
+        if(rc != 0) {
+            ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = 0x%04x", rc);
+        }
+    }
+}
+
+void
+dgr_build_time_tx_msg(struct os_mbuf *om) {
+    uint8_t msg[3];
+    uint16_t crc;
+    int rc;
+
+    msg[0] = TIME_TX_OPCODE;
+    crc = ~crc16_be((uint16_t)~0x0000, msg, 1);
+    // crc as little endian
+    msg[1] = crc;
+    msg[2] = crc >> 8;
+
+    if(om) {
+        rc = os_mbuf_copyinto(om, 0, msg, 3);
+        if(rc != 0) {
+            ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = 0x%04x", rc);
+        }
+    }
+}
+
 /* parsing ----------------------------------------------------------------- */
 
 void
@@ -197,9 +234,29 @@ dgr_parse_glucose_msg(const uint8_t *data, uint8_t length) {
         ESP_LOGI(tag_msg, "\ttimestamp = 0x%x", timestamp);
         ESP_LOGI(tag_msg, "\tglucose   = %d", glucose);
         ESP_LOGI(tag_msg, "\treceived crc = 0x%02x, calculated crc = 0x%02x", crc, crc_calc);
+
         //TODO: something to store readings
+        dgr_save_to_ringbuffer(data, length);
     } else {
         ESP_LOGE(tag_msg, "Received GlucoseRx message has wrong length(%d).", length);
+    }
+}
+
+void
+dgr_parse_backfill_msg(const uint8_t *data, uint8_t length) {
+    if(length == 20) {
+        //TODO: parsing, saving
+    } else {
+        ESP_LOGE(tag_msg, "Received Backfill message has wrong length(%d).", length);
+    }
+}
+
+void
+dgr_parse_time_msg(const uint8_t *data, uint8_t length) {
+    if(length == 16) {
+        //TODO: parsing
+    } else {
+        ESP_LOGE(tag_msg, "Received Time message has wrong length(%d).", length);
     }
 }
 

@@ -1,8 +1,8 @@
-#include <host/ble_gap.h>
 #include "nvs_flash.h"
 #include <sys/time.h>
 
 // BLE
+#include <host/ble_gap.h>
 #include "host/ble_hs.h"
 #include "host/util/util.h"
 #include "esp_nimble_hci.h"
@@ -204,7 +204,8 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	    case BLE_GAP_EVENT_ENC_CHANGE:
 	        ESP_LOGI(tag, "Encryption changed: handle = %d, status = 0x%04x",
 	            event->enc_change.conn_handle, event->enc_change.status);
-            dgr_send_notification_enable_msg(event->enc_change.conn_handle);
+            dgr_send_notification_enable_msg(event->enc_change.conn_handle,
+                &control_uuid.u, dgr_send_notification_enable_msg_cb);
 	        return 0;
 
 		default:
@@ -262,6 +263,8 @@ app_main(void) {
     dgr_create_mbuf_pool();
     // initialize aes context
     dgr_create_crypto_context();
+    // create ringbuffer
+    dgr_init_ringbuffer();
 
 	// initialize NimBLE host configuration and callbacks
 	// sync callback (controller and host sync, executed at startup/reset)
