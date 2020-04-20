@@ -1,3 +1,4 @@
+#include <stdint-gcc.h>
 #include "host/ble_uuid.h"
 #include "esp_system.h"
 #include "mbedtls/aes.h"
@@ -13,6 +14,8 @@ uint8_t authentication_status = 0;
 uint8_t bond_status = 0;
 mbedtls_aes_context aes_ecb_ctx;
 unsigned char key[16];
+uint32_t backfill_start_time;
+uint32_t backfill_end_time;
 
 void
 dgr_encrypt(const unsigned char in_bytes[8], unsigned char out_bytes[8]) {
@@ -142,7 +145,7 @@ dgr_build_glucose_tx_msg(struct os_mbuf *om) {
     crc = ~crc16_be((uint16_t)~0x0000, msg, 1);
     // write crc as little-endian
     msg[1] = crc;
-    msg[2] = crc >> 8;
+    msg[2] = crc >> 8U;
 
     if(om) {
         rc = os_mbuf_copyinto(om, 0, msg, 3);
@@ -154,12 +157,24 @@ dgr_build_glucose_tx_msg(struct os_mbuf *om) {
 
 void
 dgr_build_backfill_tx_msg(struct os_mbuf *om) {
-    uint8_t msg[19];
+    uint8_t msg[20];
     uint16_t crc;
     int rc;
 
     msg[0] = BACKFILL_TX_OPCODE;
-    //TODO: fill message
+    msg[1] = 0x5;
+    msg[2] = 0x2;
+    msg[3] = 0x0;
+
+    // start time
+    write_u32_le(&msg[4], backfill_start_time);
+
+    // end time
+    write_u32_le(&msg[8], backfill_end_time);
+
+    // crc
+    crc = ~crc16_be((uint16_t)~0x0000, msg, 17);
+    write_u16_le(&msg[18], crc);
 
     if(om) {
         rc = os_mbuf_copyinto(om, 0, msg, 19);
@@ -179,7 +194,7 @@ dgr_build_time_tx_msg(struct os_mbuf *om) {
     crc = ~crc16_be((uint16_t)~0x0000, msg, 1);
     // crc as little endian
     msg[1] = crc;
-    msg[2] = crc >> 8;
+    msg[2] = crc >> 8U;
 
     if(om) {
         rc = os_mbuf_copyinto(om, 0, msg, 3);
@@ -217,12 +232,12 @@ dgr_parse_auth_status_msg(const uint8_t *data, uint8_t length) {
 }
 
 void
-dgr_parse_glucose_msg(const uint8_t *data, uint8_t length) {
+dgr_parse_glucose_msg(const uint8_t *data, uint8_t length, uint8_t conn_handle) {
     if(length >= 16) {
         uint8_t status = data[1];
         uint32_t sequence = make_u32_from_bytes_le(&data[2]);
         uint32_t timestamp = make_u32_from_bytes_le(&data[6]);
-        uint16_t glucose = make_u16_from_bytes_le(&data[10]) & 0xfff;
+        uint16_t glucose = make_u16_from_bytes_le(&data[10]) & 0xfffU;
         uint8_t state = data[12];
         uint8_t trend = data[13];
         uint16_t crc = make_u16_from_bytes_le(&data[length - 2]);
@@ -237,6 +252,7 @@ dgr_parse_glucose_msg(const uint8_t *data, uint8_t length) {
 
         //TODO: something to store readings
         dgr_save_to_ringbuffer(data, length);
+        dgr_check_for_backfill_and_sleep(conn_handle);
     } else {
         ESP_LOGE(tag_msg, "Received GlucoseRx message has wrong length(%d).", length);
     }
@@ -252,9 +268,22 @@ dgr_parse_backfill_msg(const uint8_t *data, uint8_t length) {
 }
 
 void
-dgr_parse_time_msg(const uint8_t *data, uint8_t length) {
+dgr_parse_time_msg(const uint8_t *data, uint8_t length, uint16_t conn_handle) {
     if(length == 16) {
-        //TODO: parsing
+        //TODO: date calculations
+        uint8_t state = data[1];
+        uint32_t current_time = make_u32_from_bytes_le(&data[2]);
+        uint32_t session_start_time = make_u32_from_bytes_le(&data[6]);
+
+        ESP_LOGI(tag_msg, "TransmitterTimeRx (state = %d)", state);
+        ESP_LOGI(tag_msg, "\tcurrent time = 0x%x", current_time);
+        ESP_LOGI(tag_msg, "\tsession start time = 0x%x", session_start_time);
+
+        // set backfill related times
+        backfill_start_time = current_time - (60*60*3); // three hours before
+        backfill_end_time = current_time - 60; // one minute before
+
+        dgr_send_glucose_tx_msg(conn_handle);
     } else {
         ESP_LOGE(tag_msg, "Received Time message has wrong length(%d).", length);
     }

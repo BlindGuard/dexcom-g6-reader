@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "nimble/ble.h"
+#include <host/ble_gap.h>
 
 #include "dexcom_g6_reader.h"
 
@@ -122,13 +123,36 @@ void dgr_print_rx_packet(struct os_mbuf *om) {
     }*/
 }
 
+void
+dgr_print_conn_sec_state(struct ble_gap_sec_state conn_sec) {
+    ESP_LOGI(tag_util, "[=========== connection security ===========]");
+    ESP_LOGI(tag_util, "encrypted?      %s", conn_sec.encrypted == 1 ? "yes" : "no");
+    ESP_LOGI(tag_util, "authenticated?  %s", conn_sec.authenticated == 1 ? "yes" : "no");
+    ESP_LOGI(tag_util, "bonded?         %s", conn_sec.bonded == 1 ? "yes" : "no");
+    ESP_LOGI(tag_util, "key size = %d", conn_sec.key_size);
+}
+
 uint32_t
 make_u32_from_bytes_le(const uint8_t *bytes) {
-    return bytes[0] | (uint32_t) bytes[1] << 8
-        | (uint32_t) bytes[2] << 16 | (uint32_t) bytes[3] << 24;
+    return bytes[0] | (uint32_t) bytes[1] << 8U
+        | (uint32_t) bytes[2] << 16U | (uint32_t) bytes[3] << 24U;
 }
 
 uint16_t
 make_u16_from_bytes_le(const uint8_t *bytes) {
-    return bytes[0] | (uint16_t) bytes[1] << 8;
+    return bytes[0] | (uint16_t) bytes[1] << 8U;
+}
+
+void
+write_u32_le(uint8_t *bytes, uint32_t in) {
+    bytes[0] = in;
+    bytes[1] = in >> 8U;
+    bytes[2] = in >> 16U;
+    bytes[3] = in >> 24U;
+}
+
+void
+write_u16_le(uint8_t *bytes, uint32_t in) {
+    bytes[0] = in;
+    bytes[1] = in >> 8U;
 }

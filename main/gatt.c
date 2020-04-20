@@ -19,6 +19,10 @@ const ble_uuid128_t control_uuid =
 const ble_uuid128_t authentication_uuid =
     BLE_UUID128_INIT(0xa5, 0x4e, 0x6a, 0xf8, 0xf1, 0x30, 0x94, 0xc5,
                      0x1c, 0x53, 0x9e, 0x84, 0x35, 0x35, 0x08, 0xf8);
+// F8083536-849E-531C-C594-30F1F86A4EA5
+const ble_uuid128_t backfill_uuid =
+    BLE_UUID128_INIT(0xa5, 0x4e, 0x6a, 0xf8, 0xf1, 0x30, 0x94, 0xc5,
+                     0x1c, 0x53, 0x9e, 0x84, 0x36, 0x35, 0x08, 0xf8);
 
 //list characteristics = {.head = NULL, .length = 0};
 list services = {NULL, NULL, 0};
@@ -75,13 +79,13 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
             case TIME_RX_OPCODE: {
                 ESP_LOGI(tag_gatt, "Received time message.");
 
-                dgr_parse_time_msg(om->om_data, om->om_len);
+                dgr_parse_time_msg(om->om_data, om->om_len, conn_handle);
                 break;
             }
             case GLUCOSE_RX_OPCODE: {
                 ESP_LOGI(tag_gatt, "Received glucose message.");
 
-                dgr_parse_glucose_msg(om->om_data, om->om_len);
+                dgr_parse_glucose_msg(om->om_data, om->om_len, conn_handle);
                 break;
             }
 
@@ -99,13 +103,20 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
  * message sending                                                           *
  *****************************************************************************/
 void
-dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid, ble_gatt_attr_fn *cb) {
+dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid, ble_gatt_attr_fn *cb,
+    uint8_t type) {
     // enable notifications/indications by writing to the CCCD of uuid
+    uint8_t data[2];
 
-    // indication
-    uint8_t data[2] = {1, 0};
-    // notification
-    //uint8_t data[2] = {0, 1};
+    if(type == 1) {
+        // indication
+         data[0] = 1;
+         data[1] = 0;
+    } else {
+        // notification
+        data[0] = 0;
+        data[1] = 1;
+    }
     struct ble_gatt_chr uh;
     uint16_t handle = 0;
     char buf[BLE_UUID_STR_LEN];
@@ -231,7 +242,7 @@ dgr_send_time_tx_msg(uint16_t conn_handle) {
     if(om) {
         dgr_build_time_tx_msg(om);
         ESP_LOGI(tag_gatt, "TransmitterTime: sending message");
-        dgr_write_control_char(conn_handle, dgr_send_time_rx_msg_cb, om);
+        dgr_write_control_char(conn_handle, dgr_send_time_tx_msg_cb, om);
     }
 }
 
@@ -326,11 +337,20 @@ dgr_discover_chr_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
     if(error->status == BLE_HS_EDONE) {
         ESP_LOGI(tag_gatt, "Characteristics discovery: finished.");
 
-        dgr_print_list(&services);
-        dgr_print_list(&characteristics);
-        dgr_print_list(&descriptors);
+        //dgr_print_list(&services);
+        //dgr_print_list(&characteristics);
+        //dgr_print_list(&descriptors);
 
-        dgr_send_auth_request_msg(conn_handle);
+        if(dgr_check_bond_state(conn_handle)) {
+            // already bonded, start cgm reading
+            ESP_LOGI(tag_gatt, "Already bonded with transmitter.");
+            dgr_send_notification_enable_msg(conn_handle, &control_uuid.u,
+                                             dgr_send_control_enable_notif_cb, 1);
+        } else {
+            // not bonded, start authentication
+            ESP_LOGI(tag_gatt, "Not bonded with transmitter. Starting authentication.");
+            dgr_send_auth_request_msg(conn_handle);
+        }
     } else {
         ESP_LOGI(tag_gatt, "Characteristics discovery: status = %d, att_handle = %d",
                  error->status, error->att_handle);
@@ -466,25 +486,39 @@ dgr_send_glucose_tx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *er
 }
 
 int
-dgr_send_notification_enable_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+dgr_send_control_enable_notif_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
         struct ble_gatt_attr *attr, void *arg) {
-    ESP_LOGI(tag_gatt, "[07] Enabling notifications: write callback.");
+    ESP_LOGI(tag_gatt, "[07] Enabling control notifications: write callback.");
 
     dgr_print_cb_info(error, attr);
-    dgr_send_glucose_tx_msg(conn_handle);
+    dgr_send_time_tx_msg(conn_handle);
     return 0;
 }
 
 int
-dgr_send_time_rx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+dgr_send_time_tx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
         struct ble_gatt_attr *attr, void *arg) {
-    //TODO: control flow stuff
+    ESP_LOGI(tag_gatt, "TransmitterTime: write callback.");
+
+    dgr_print_cb_info(error, attr);
     return 0;
 }
 
 int
 dgr_send_backfill_tx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
         struct ble_gatt_attr *attr, void *arg) {
-    //TODO: control flow stuff
+    ESP_LOGI(tag_gatt, "Backfill: write callback.");
+
+    dgr_print_cb_info(error, attr);
+    return 0;
+}
+
+int
+dgr_send_backfill_enable_notif_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+    struct ble_gatt_attr *attr, void *arg) {
+    ESP_LOGI(tag_gatt, "Enabling backfill notifications: write callback.");
+
+    dgr_print_cb_info(error, attr);
+    dgr_send_backfill_tx_msg(conn_handle);
     return 0;
 }

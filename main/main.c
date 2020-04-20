@@ -1,5 +1,5 @@
 #include "nvs_flash.h"
-#include <sys/time.h>
+#include <esp_sleep.h>
 
 // BLE
 #include <host/ble_gap.h>
@@ -13,13 +13,9 @@
 
 #include "dexcom_g6_reader.h"
 
-#define MAXIMUM_CONN_ATTEMPTS       5
-#define SLEEP_BETWEEN_CONNECTIONS   20  // in seconds
 
-static int counter = 0;
 static const char *tag = "[Dexcom-G6-Reader][main]";
 const char *transmitter_id = "812345";
-static struct timeval conn_time;
 
 int dgr_gap_event(struct ble_gap_event *event, void *arg);
 
@@ -27,6 +23,7 @@ bool
 dgr_check_conn_candidate(struct ble_hs_adv_fields *adv_fields) {
     // sensor name is DexcomXX, where XX are the last 2 digits of
     // the transmitter id
+    //TODO: add advertisement uuid to check
     if(adv_fields->name != NULL) {
         int name_len = adv_fields->name_len;
         if(adv_fields->name[name_len - 1] == transmitter_id[5] &&
@@ -39,6 +36,14 @@ dgr_check_conn_candidate(struct ble_hs_adv_fields *adv_fields) {
 
     ESP_LOGE(tag, "Connection candidate name not set or wrong.");
     return false;
+}
+
+bool
+dgr_check_bond_state(uint16_t conn_handle) {
+    struct ble_gap_conn_desc conn_desc;
+    ble_gap_conn_find(conn_handle, &conn_desc);
+
+    return (conn_desc.sec_state.bonded == 1U);
 }
 
 void
@@ -92,20 +97,6 @@ dgr_start_scan(void) {
     uint8_t own_addr_type;
     struct ble_gap_disc_params disc_params;
     int rc;
-    struct timeval t_now;
-
-    // make sure we wait the required time between connection attempts
-    gettimeofday(&t_now, NULL);
-    time_t t_diff = t_now.tv_sec - conn_time.tv_sec;
-    if(counter > 0 && t_diff < SLEEP_BETWEEN_CONNECTIONS) {
-        ESP_LOGI(tag, "Waiting for %d seconds.", (uint32_t)t_diff);
-        vTaskDelay((t_diff * 1000)/portTICK_RATE_MS);
-    }
-
-    if(counter > MAXIMUM_CONN_ATTEMPTS) {
-        ESP_LOGE(tag, "Maximum connection attempts reached(%d).", MAXIMUM_CONN_ATTEMPTS);
-        return;
-    }
 
     rc = ble_hs_id_infer_auto(1, &own_addr_type);
     if(rc != 0) {
@@ -133,9 +124,6 @@ int
 dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	switch(event->type) {
 	    case BLE_GAP_EVENT_CONNECT:
-	        counter++;
-	        gettimeofday(&conn_time, NULL);
-
 	        // new connection established or connection attempt failed
 	        if(event->connect.status != 0) {
 	            // connection attempt failed
@@ -149,12 +137,11 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	            // connection successfully
 	            ESP_LOGI(tag, "Connection successfull. handle = %d",
 	                    event->connect.conn_handle);
+	            // TODO: remove or make debug output?
+                struct ble_gap_conn_desc conn_desc;
+                ble_gap_conn_find(event->enc_change.conn_handle, &conn_desc);
+                dgr_print_conn_sec_state(conn_desc.sec_state);
 
-	            // security, apparently not needed
-                //int rc = ble_gap_security_initiate(event->connect.conn_handle);
-                //if(rc != 0) {
-                //    ESP_LOGE(tag, "GAP security initiate failed. error = %x", rc);
-                //}
 
                 // start discovery of service
                 dgr_discover_services(event->connect.conn_handle);
@@ -195,17 +182,24 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	        ESP_LOGI(tag, "Disconnect: handle = %d, reason = 0x%04x",
                        event->disconnect.conn.conn_handle, event->disconnect.reason);
 
+	        dgr_print_rbuf();
+            ESP_LOGI(tag, "Going to deep sleep for %d seconds", SLEEP_BETWEEN_READINGS);
+            esp_deep_sleep(SLEEP_BETWEEN_READINGS * 1000000); // time is in microseconds
 	        // restart scan
-	        dgr_reset_state();
-	        dgr_start_scan();
+	        //dgr_reset_state();
+	        //dgr_start_scan();
             return 0;
 
 
 	    case BLE_GAP_EVENT_ENC_CHANGE:
 	        ESP_LOGI(tag, "Encryption changed: handle = %d, status = 0x%04x",
 	            event->enc_change.conn_handle, event->enc_change.status);
+	        struct ble_gap_conn_desc conn_desc;
+	        ble_gap_conn_find(event->enc_change.conn_handle, &conn_desc);
+            dgr_print_conn_sec_state(conn_desc.sec_state);
+
             dgr_send_notification_enable_msg(event->enc_change.conn_handle,
-                &control_uuid.u, dgr_send_notification_enable_msg_cb);
+                                             &control_uuid.u, dgr_send_control_enable_notif_cb, 1);
 	        return 0;
 
 		default:
@@ -243,7 +237,7 @@ dgr_host_task(void *param) {
 
 void
 app_main(void) {
-	//int rc;
+    esp_sleep_wakeup_cause_t wakeup_cause = esp_sleep_get_wakeup_cause();
 
 	// initialize NVS flash
 	esp_err_t ret = nvs_flash_init();
@@ -263,8 +257,11 @@ app_main(void) {
     dgr_create_mbuf_pool();
     // initialize aes context
     dgr_create_crypto_context();
-    // create ringbuffer
-    dgr_init_ringbuffer();
+    if(wakeup_cause != ESP_SLEEP_WAKEUP_TIMER) {
+        // create ringbuffer
+        // ringbuffer is in RTC memory so we dont need to initialize it when waking up
+        dgr_init_ringbuffer();
+    }
 
 	// initialize NimBLE host configuration and callbacks
 	// sync callback (controller and host sync, executed at startup/reset)

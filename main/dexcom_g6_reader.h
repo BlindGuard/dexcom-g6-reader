@@ -5,6 +5,9 @@
 #include "sys/queue.h"
 #include "freertos/ringbuf.h"
 #include "freertos/semphr.h"
+#include <sys/time.h>
+
+#define SLEEP_BETWEEN_READINGS      60 // in seconds (240)
 
 // Opcodes
 #define AUTH_REQUEST_TX_OPCODE      0x1
@@ -28,6 +31,7 @@ extern const ble_uuid16_t advertisement_uuid;
 extern const ble_uuid128_t cgm_service_uuid;
 extern const ble_uuid128_t control_uuid;
 extern const ble_uuid128_t authentication_uuid;
+extern const ble_uuid128_t backfill_uuid;
 
 /** mbuf **/
 #define MBUF_PKTHDR_OVERHEAD        sizeof(struct os_mbuf_pkthdr)
@@ -69,21 +73,30 @@ list services;
 list characteristics;
 list descriptors;
 
+/** main.c**/
+bool dgr_check_bond_state(uint16_t conn_handle);
+
 /** storage.c **/
 RingbufHandle_t rbuf_handle;
 void dgr_init_ringbuffer();
 void dgr_save_to_ringbuffer(const uint8_t *in, uint8_t length);
+void dgr_check_for_backfill_and_sleep(uint16_t conn_handle);
+void dgr_print_rbuf();
 
 /**  util.c **/
 char* addr_to_string(const void *addr);
 void print_adv_fields(struct ble_hs_adv_fields *adv_fields);
 void dgr_print_rx_packet(struct os_mbuf *om);
+void dgr_print_conn_sec_state(struct ble_gap_sec_state conn_sec);
 uint32_t make_u32_from_bytes_le(const uint8_t *bytes);
 uint16_t make_u16_from_bytes_le(const uint8_t *bytes);
+void write_u32_le(uint8_t *bytes, uint32_t in);
+void write_u16_le(uint8_t *bytes, uint32_t in);
 
 /**  gatt.c **/
 void dgr_discover_services(uint16_t conn_handle);
 void dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle);
+void dgr_send_glucose_tx_msg(uint16_t conn_handle);
 
 // ble_gatt_dsc_fn
 int
@@ -114,11 +127,13 @@ int dgr_send_bond_request_cb(uint16_t conn_handle, const struct ble_gatt_error *
     struct ble_gatt_attr *attr, void *arg);
 int dgr_send_glucose_tx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
     struct ble_gatt_attr *attr, void *arg);
-int dgr_send_notification_enable_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+int dgr_send_control_enable_notif_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
     struct ble_gatt_attr *attr, void *arg);
-int dgr_send_time_rx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+int dgr_send_time_tx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
     struct ble_gatt_attr *attr, void *arg);
 int dgr_send_backfill_tx_msg_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
+    struct ble_gatt_attr *attr, void *arg);
+int dgr_send_backfill_enable_notif_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
     struct ble_gatt_attr *attr, void *arg);
 
 /**  gatt_lists.c */
@@ -132,7 +147,8 @@ void dgr_print_list(list *l);
 void dgr_print_list_elm(list_elm *le);
 
 /**  messages.c **/
-void dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid, ble_gatt_attr_fn *cb);
+void dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid,
+    ble_gatt_attr_fn *cb, uint8_t type);
 void dgr_build_auth_request_msg(struct os_mbuf *om);
 void dgr_build_auth_challenge_msg(struct os_mbuf *om);
 void dgr_build_keep_alive_msg(struct os_mbuf *om, uint8_t time);
@@ -142,9 +158,9 @@ void dgr_build_backfill_tx_msg(struct os_mbuf *om);
 void dgr_build_time_tx_msg(struct os_mbuf *om);
 void dgr_parse_auth_challenge_msg(const uint8_t *data, uint8_t length, bool *correct_token);
 void dgr_parse_auth_status_msg(const uint8_t *data, uint8_t length);
-void dgr_parse_glucose_msg(const uint8_t *data, uint8_t length);
+void dgr_parse_glucose_msg(const uint8_t *data, uint8_t length, uint8_t conn_handle);
 void dgr_parse_backfill_msg(const uint8_t *data, uint8_t length);
-void dgr_parse_time_msg(const uint8_t *data, uint8_t length);
+void dgr_parse_time_msg(const uint8_t *data, uint8_t length, uint16_t conn_handle);
 void dgr_create_mbuf_pool();
 void dgr_create_crypto_context();
 void dgr_print_token_details();
