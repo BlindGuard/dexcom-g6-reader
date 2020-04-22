@@ -6,6 +6,7 @@
 #define BUFFER_TYPE         RINGBUF_TYPE_NOSPLIT
 RTC_DATA_ATTR StaticRingbuffer_t buffer_struct;
 RTC_DATA_ATTR uint8_t buffer_storage[BUFFER_SIZE];
+RTC_DATA_ATTR RingbufHandle_t rbuf_handle;
 
 static const char *tag_stg = "[Dexcom-G6-Reader][storage]";
 
@@ -47,6 +48,7 @@ dgr_print_rbuf() {
     size_t item_size;
     uint8_t *data = (uint8_t *)xRingbufferReceive(rbuf_handle, &item_size, pdMS_TO_TICKS(1000));
 
+    xRingbufferPrintInfo(rbuf_handle);
     while(data != NULL) {
         uint8_t status = data[1];
         uint32_t sequence = make_u32_from_bytes_le(&data[2]);

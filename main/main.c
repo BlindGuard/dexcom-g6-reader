@@ -1,5 +1,6 @@
 #include "nvs_flash.h"
 #include <esp_sleep.h>
+#include "esp_log.h"
 
 // BLE
 #include <host/ble_gap.h>
@@ -14,6 +15,7 @@
 #include "dexcom_g6_reader.h"
 
 
+RTC_DATA_ATTR int boot_count = 0;
 static const char *tag = "[Dexcom-G6-Reader][main]";
 const char *transmitter_id = "812345";
 
@@ -84,7 +86,7 @@ dgr_evaluate_adv_report(const struct ble_gap_disc_desc *disc) {
     }
 
     // log advertisement
-    print_adv_fields(&adv_fields);
+    //print_adv_fields(&adv_fields);
 
     // connect if connection candidate is desired device
     if(dgr_check_conn_candidate(&adv_fields)) {
@@ -182,7 +184,8 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	        ESP_LOGI(tag, "Disconnect: handle = %d, reason = 0x%04x",
                        event->disconnect.conn.conn_handle, event->disconnect.reason);
 
-	        dgr_print_rbuf();
+	        //dgr_print_rbuf();
+
             ESP_LOGI(tag, "Going to deep sleep for %d seconds", SLEEP_BETWEEN_READINGS);
             esp_deep_sleep(SLEEP_BETWEEN_READINGS * 1000000); // time is in microseconds
 	        // restart scan
@@ -238,6 +241,7 @@ dgr_host_task(void *param) {
 void
 app_main(void) {
     esp_sleep_wakeup_cause_t wakeup_cause = esp_sleep_get_wakeup_cause();
+    boot_count++;
 
 	// initialize NVS flash
 	esp_err_t ret = nvs_flash_init();
@@ -268,8 +272,6 @@ app_main(void) {
 	ble_hs_cfg.sync_cb = dgr_sync_callback;
 	// reset callback (executed after fatal error)
 	ble_hs_cfg.reset_cb = dgr_reset_callback;
-	// store status callback (executed when persistence operation cannot be performed)
-	//ble_hs_cfg.store_status_cb =
 
 	ble_svc_gap_init();
 	ble_svc_gatt_init();

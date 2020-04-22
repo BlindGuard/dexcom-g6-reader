@@ -272,11 +272,13 @@ dgr_parse_time_msg(const uint8_t *data, uint8_t length, uint16_t conn_handle) {
     if(length == 16) {
         //TODO: date calculations
         uint8_t state = data[1];
+        // seconds since transmitter start
         uint32_t current_time = make_u32_from_bytes_le(&data[2]);
+        // seconds since session start
         uint32_t session_start_time = make_u32_from_bytes_le(&data[6]);
 
         ESP_LOGI(tag_msg, "TransmitterTimeRx (state = %d)", state);
-        ESP_LOGI(tag_msg, "\tcurrent time = 0x%x", current_time);
+        ESP_LOGI(tag_msg, "\tcurrent time       = 0x%x", current_time);
         ESP_LOGI(tag_msg, "\tsession start time = 0x%x", session_start_time);
 
         // set backfill related times

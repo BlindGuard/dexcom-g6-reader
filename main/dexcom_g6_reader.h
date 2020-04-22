@@ -77,7 +77,6 @@ list descriptors;
 bool dgr_check_bond_state(uint16_t conn_handle);
 
 /** storage.c **/
-RingbufHandle_t rbuf_handle;
 void dgr_init_ringbuffer();
 void dgr_save_to_ringbuffer(const uint8_t *in, uint8_t length);
 void dgr_check_for_backfill_and_sleep(uint16_t conn_handle);
