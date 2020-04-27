@@ -7,7 +7,8 @@
 #include "freertos/semphr.h"
 #include <sys/time.h>
 
-#define SLEEP_BETWEEN_READINGS      60 // in seconds (240)
+#define SLEEP_BETWEEN_READINGS      600 // in seconds (240)
+#define SLEEP_AFTER_ERROR           30 // in seconds
 
 // Opcodes
 #define AUTH_REQUEST_TX_OPCODE      0x1
@@ -74,12 +75,14 @@ list characteristics;
 list descriptors;
 
 /** main.c**/
+void dgr_error();
 bool dgr_check_bond_state(uint16_t conn_handle);
 
 /** storage.c **/
+extern uint32_t last_sequence;
 void dgr_init_ringbuffer();
 void dgr_save_to_ringbuffer(const uint8_t *in, uint8_t length);
-void dgr_check_for_backfill_and_sleep(uint16_t conn_handle);
+void dgr_check_for_backfill_and_sleep(uint16_t conn_handle, uint32_t sequence);
 void dgr_print_rbuf();
 
 /**  util.c **/

@@ -7,6 +7,7 @@
 RTC_DATA_ATTR StaticRingbuffer_t buffer_struct;
 RTC_DATA_ATTR uint8_t buffer_storage[BUFFER_SIZE];
 RTC_DATA_ATTR RingbufHandle_t rbuf_handle;
+RTC_DATA_ATTR uint32_t last_sequence = 0;
 
 static const char *tag_stg = "[Dexcom-G6-Reader][storage]";
 
@@ -33,14 +34,23 @@ dgr_save_to_ringbuffer(const uint8_t *in, uint8_t length) {
 
 //TODO: backfill
 void
-dgr_check_for_backfill_and_sleep(uint16_t conn_handle) {
-    // enable backfill notifications
-    dgr_send_notification_enable_msg(conn_handle, &backfill_uuid.u, dgr_send_backfill_enable_notif_cb, 0);
-    //TODO: control flow -> waiting for backfill messages
+dgr_check_for_backfill_and_sleep(uint16_t conn_handle, uint32_t sequence) {
+    uint32_t sequence_diff = sequence - last_sequence;
+    last_sequence = sequence;
 
-    // tear down bt?
-    //ESP_LOGI(tag_stg, "Going to deep sleep for %d seconds", SLEEP_BETWEEN_READINGS);
-    //esp_deep_sleep(SLEEP_BETWEEN_READINGS * 1000000); // time is in microseconds
+    if(sequence_diff == 1) {
+        // tear down bt?
+        ESP_LOGI(tag_stg, "No Backfill necessary. Going to deep sleep for %d seconds", SLEEP_BETWEEN_READINGS);
+        esp_deep_sleep(SLEEP_BETWEEN_READINGS * 1000000); // time is in microseconds
+    } else if(sequence_diff > 1) {
+        // enable backfill notifications
+        ESP_LOGI(tag_stg, "Sequence difference is : %ud. Starting backfill.", sequence_diff);
+        dgr_send_notification_enable_msg(conn_handle, &backfill_uuid.u, dgr_send_backfill_enable_notif_cb, 0);
+    } else {
+        ESP_LOGE(tag_stg, "Unexpected difference between sequences : %ud", sequence_diff);
+        dgr_error();
+    }
+
 }
 
 void

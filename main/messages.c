@@ -243,6 +243,20 @@ dgr_parse_glucose_msg(const uint8_t *data, uint8_t length, uint8_t conn_handle) 
         uint16_t crc = make_u16_from_bytes_le(&data[length - 2]);
         uint16_t crc_calc = ~crc16_be((uint16_t)~0x0000, data, length - 2);
 
+        if(crc != crc_calc) {
+            ESP_LOGE(tag_msg, "GlucoseRx : Calculated CRC does not match received CRC.");
+            dgr_error();
+        }
+
+        if(last_sequence - sequence == 0) {
+            ESP_LOGE(tag_msg, "Duplicate Reading.");
+            dgr_error();
+        } else if(sequence < last_sequence) {
+            ESP_LOGE(tag_msg, "Out of Band Reading. last_sequence = %d, sequence = %d",
+                last_sequence, sequence);
+            dgr_error();
+        }
+
         ESP_LOGI(tag_msg, "[=========== GlucoseRx ===========]");
         ESP_LOGI(tag_msg, "\tstatus    = 0x%x, state = 0x%x, trend = 0x%x", status, state, trend);
         ESP_LOGI(tag_msg, "\tsequence  = 0x%x", sequence);
@@ -250,9 +264,8 @@ dgr_parse_glucose_msg(const uint8_t *data, uint8_t length, uint8_t conn_handle) 
         ESP_LOGI(tag_msg, "\tglucose   = %d", glucose);
         ESP_LOGI(tag_msg, "\treceived crc = 0x%02x, calculated crc = 0x%02x", crc, crc_calc);
 
-        //TODO: something to store readings
         dgr_save_to_ringbuffer(data, length);
-        dgr_check_for_backfill_and_sleep(conn_handle);
+        dgr_check_for_backfill_and_sleep(conn_handle, 0);
     } else {
         ESP_LOGE(tag_msg, "Received GlucoseRx message has wrong length(%d).", length);
     }
@@ -262,6 +275,22 @@ void
 dgr_parse_backfill_msg(const uint8_t *data, uint8_t length) {
     if(length == 20) {
         //TODO: parsing, saving
+        uint8_t status = data[1];
+        uint8_t unknown_1 = data[2];
+        uint8_t unknown_2 = data[3];
+        uint32_t start_time = make_u32_from_bytes_le(&data[4]);
+        uint32_t end_time = make_u32_from_bytes_le(&data[8]);
+        uint32_t current_time = make_u32_from_bytes_le(&data[12]);
+        uint32_t glucose = make_u16_from_bytes_le(&data[16]);
+        uint8_t type = data[18];
+        uint8_t trend = data[19];
+
+        ESP_LOGI(tag_msg, "[=========== BackfillRx ===========]");
+        ESP_LOGI(tag_msg, "\tstatus = 0x%x, type = 0x%x, trend = 0x%x", status, type, trend);
+        ESP_LOGI(tag_msg, "\tstart_time   = 0x%x", start_time);
+        ESP_LOGI(tag_msg, "\tend_time     = 0x%x", end_time);
+        ESP_LOGI(tag_msg, "\tcurrent_time = 0x%x", current_time);
+        ESP_LOGI(tag_msg, "\tglucose      = %d", glucose);
     } else {
         ESP_LOGE(tag_msg, "Received Backfill message has wrong length(%d).", length);
     }

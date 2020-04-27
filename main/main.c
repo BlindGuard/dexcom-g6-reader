@@ -16,10 +16,21 @@
 
 
 RTC_DATA_ATTR int boot_count = 0;
+RTC_DATA_ATTR int error_count = 0;
 static const char *tag = "[Dexcom-G6-Reader][main]";
 const char *transmitter_id = "812345";
 
 int dgr_gap_event(struct ble_gap_event *event, void *arg);
+
+void
+dgr_error() {
+    //TODO: error count, stuff etc
+    error_count++;
+    ESP_LOGE(tag, "Error count = %d", error_count);
+
+    ESP_LOGE(tag, "Going to deep sleep after error for %d seconds", SLEEP_AFTER_ERROR);
+    esp_deep_sleep(SLEEP_AFTER_ERROR * 1000000); // time is in microseconds
+}
 
 bool
 dgr_check_conn_candidate(struct ble_hs_adv_fields *adv_fields) {
@@ -46,13 +57,6 @@ dgr_check_bond_state(uint16_t conn_handle) {
     ble_gap_conn_find(conn_handle, &conn_desc);
 
     return (conn_desc.sec_state.bonded == 1U);
-}
-
-void
-dgr_reset_state() {
-    dgr_clear_list(&characteristics);
-    dgr_clear_list(&services);
-    dgr_clear_list(&descriptors);
 }
 
 void
@@ -184,14 +188,9 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	        ESP_LOGI(tag, "Disconnect: handle = %d, reason = 0x%04x",
                        event->disconnect.conn.conn_handle, event->disconnect.reason);
 
-	        //dgr_print_rbuf();
 
             ESP_LOGI(tag, "Going to deep sleep for %d seconds", SLEEP_BETWEEN_READINGS);
             esp_deep_sleep(SLEEP_BETWEEN_READINGS * 1000000); // time is in microseconds
-	        // restart scan
-	        //dgr_reset_state();
-	        //dgr_start_scan();
-            return 0;
 
 
 	    case BLE_GAP_EVENT_ENC_CHANGE:
