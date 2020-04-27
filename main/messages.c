@@ -30,7 +30,8 @@ dgr_encrypt(const unsigned char in_bytes[8], unsigned char out_bytes[8]) {
 
     rc = mbedtls_aes_crypt_ecb(&aes_ecb_ctx, MBEDTLS_AES_ENCRYPT, aes_in, aes_out);
     if(rc != 0) {
-        ESP_LOGE(tag_msg, "Error while encrypting. rc = %d", rc);
+        ESP_LOGE(tag_msg, "Error while encrypting. rc = 0x%04x", rc);
+        dgr_error();
     }
 
     //ESP_LOGI(tag_msg, "AES INPUT:");
@@ -72,7 +73,8 @@ dgr_build_auth_request_msg(struct os_mbuf *om) {
 
         rc = os_mbuf_copyinto(om, 0, msg, 10);
         if(rc != 0) {
-            ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = %d", rc);
+            ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = 0x%04x", rc);
+            dgr_error();
         }
 
         ESP_LOGI(tag_msg, "AuthRequest message: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
@@ -101,7 +103,8 @@ dgr_build_auth_challenge_msg(struct os_mbuf *om) {
         ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, enc_challenge, 8, ESP_LOG_INFO);
         rc = os_mbuf_copyinto(om, 0, msg, 9);
         if(rc != 0) {
-            ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = %d", rc);
+            ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = 0x%04x", rc);
+            dgr_error();
         }
     }
 }
@@ -117,7 +120,8 @@ dgr_build_keep_alive_msg(struct os_mbuf *om, uint8_t time) {
 
         rc = os_mbuf_copyinto(om, 0, msg, 2);
         if(rc != 0) {
-            ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = %d", rc);
+            ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = 0x%04x", rc);
+            dgr_error();
         }
     }
 }
@@ -130,7 +134,8 @@ dgr_build_bond_request_msg(struct os_mbuf *om) {
     if(om) {
         rc = os_mbuf_copyinto(om, 0, msg, 1);
         if(rc != 0) {
-            ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = %d", rc);
+            ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = 0x%04x", rc);
+            dgr_error();
         }
     }
 }
@@ -151,6 +156,7 @@ dgr_build_glucose_tx_msg(struct os_mbuf *om) {
         rc = os_mbuf_copyinto(om, 0, msg, 3);
         if(rc != 0) {
             ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = 0x%04x", rc);
+            dgr_error();
         }
     }
 }
@@ -180,6 +186,7 @@ dgr_build_backfill_tx_msg(struct os_mbuf *om) {
         rc = os_mbuf_copyinto(om, 0, msg, 19);
         if(rc != 0) {
             ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = 0x%04x", rc);
+            dgr_error();
         }
     }
 }
@@ -200,6 +207,7 @@ dgr_build_time_tx_msg(struct os_mbuf *om) {
         rc = os_mbuf_copyinto(om, 0, msg, 3);
         if(rc != 0) {
             ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = 0x%04x", rc);
+            dgr_error();
         }
     }
 }
@@ -216,6 +224,7 @@ dgr_parse_auth_challenge_msg(const uint8_t *data, uint8_t length, bool *correct_
         }
     } else {
         ESP_LOGE(tag_msg, "Received AuthChallenge message has wrong length(%d).", length);
+        dgr_error();
     }
 }
 
@@ -228,6 +237,7 @@ dgr_parse_auth_status_msg(const uint8_t *data, uint8_t length) {
         ESP_LOGI(tag_msg, "[04] AuthStatus: auth = %d, bond = %d", authentication_status, bond_status);
     } else {
         ESP_LOGE(tag_msg, "Received AuthStatus message has wrong length(%d).", length);
+        dgr_error();
     }
 }
 
@@ -268,6 +278,7 @@ dgr_parse_glucose_msg(const uint8_t *data, uint8_t length, uint8_t conn_handle) 
         dgr_check_for_backfill_and_sleep(conn_handle, 0);
     } else {
         ESP_LOGE(tag_msg, "Received GlucoseRx message has wrong length(%d).", length);
+        dgr_error();
     }
 }
 
@@ -293,6 +304,7 @@ dgr_parse_backfill_msg(const uint8_t *data, uint8_t length) {
         ESP_LOGI(tag_msg, "\tglucose      = %d", glucose);
     } else {
         ESP_LOGE(tag_msg, "Received Backfill message has wrong length(%d).", length);
+        dgr_error();
     }
 }
 
@@ -317,6 +329,7 @@ dgr_parse_time_msg(const uint8_t *data, uint8_t length, uint16_t conn_handle) {
         dgr_send_glucose_tx_msg(conn_handle);
     } else {
         ESP_LOGE(tag_msg, "Received Time message has wrong length(%d).", length);
+        dgr_error();
     }
 }
 
@@ -332,13 +345,15 @@ dgr_create_mbuf_pool() {
     rc = os_mempool_init(&dgr_mbuf_mempool, MBUF_NUM_MBUFS,
         MBUF_MEMBLOCK_SIZE, &dgr_mbuf_buffer[0], "mbuf_pool");
     if(rc != 0) {
-        ESP_LOGE(tag_msg, "Error while initializing os_mempool. rc = %d", rc);
+        ESP_LOGE(tag_msg, "Error while initializing os_mempool. rc = 0x%04x", rc);
+        dgr_error();
     }
 
     rc = os_mbuf_pool_init(&dgr_mbuf_pool, &dgr_mbuf_mempool, MBUF_MEMBLOCK_SIZE,
         MBUF_NUM_MBUFS);
     if(rc != 0) {
-        ESP_LOGE(tag_msg, "Error while initializing os_mbuf_pool. rc = %d", rc);
+        ESP_LOGE(tag_msg, "Error while initializing os_mbuf_pool. rc = 0x%04x", rc);
+        dgr_error();
     }
 }
 

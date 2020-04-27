@@ -42,12 +42,12 @@ dgr_check_conn_candidate(struct ble_hs_adv_fields *adv_fields) {
         if(adv_fields->name[name_len - 1] == transmitter_id[5] &&
            adv_fields->name[name_len - 2] == transmitter_id[4]) {
 
-            ESP_LOGI(tag, "Found a connection candidate.");
+            ESP_LOGD(tag, "Found a connection candidate.");
             return true;
         }
     }
 
-    ESP_LOGE(tag, "Connection candidate name not set or wrong.");
+    ESP_LOGD(tag, "Connection candidate name not set or wrong.");
     return false;
 }
 
@@ -66,8 +66,8 @@ dgr_connect(const struct ble_gap_disc_desc *disc) {
     // scanning must be stopped before a connection
     rc = ble_gap_disc_cancel();
     if(rc != 0) {
-        ESP_LOGE(tag, "Failed to cancel scan. rc = %d", rc);
-        return;
+        ESP_LOGE(tag, "Failed to cancel scan. rc = 0x%04x", rc);
+        dgr_error();
     }
 
     // connection attempt
@@ -75,7 +75,8 @@ dgr_connect(const struct ble_gap_disc_desc *disc) {
             dgr_gap_event, NULL);
     if(rc != 0) {
         ESP_LOGE(tag, "Connection attempt failed: addr_type: %d, addr: %s",
-                disc->addr.type, addr_to_string(disc->addr.val));
+            disc->addr.type, addr_to_string(disc->addr.val));
+        dgr_error();
     }
 }
 
@@ -86,7 +87,8 @@ dgr_evaluate_adv_report(const struct ble_gap_disc_desc *disc) {
 
     rc = ble_hs_adv_parse_fields(&adv_fields, disc->data, disc->length_data);
     if(rc != 0) {
-        return;
+        ESP_LOGE(tag, "Error parsing advertisement data. rc = 0x%04x", rc);
+        dgr_error();
     }
 
     // log advertisement
@@ -106,8 +108,8 @@ dgr_start_scan(void) {
 
     rc = ble_hs_id_infer_auto(1, &own_addr_type);
     if(rc != 0) {
-        ESP_LOGE(tag, "Error while determining address type. rc = %d", rc);
-        return;
+        ESP_LOGE(tag, "Error while determining address type. rc = 0x%04x", rc);
+        dgr_error();
     }
 
     disc_params.filter_duplicates = 1;
@@ -122,7 +124,8 @@ dgr_start_scan(void) {
     rc = ble_gap_disc(own_addr_type, BLE_HS_FOREVER, &disc_params,
                       dgr_gap_event, NULL);
     if(rc != 0) {
-        ESP_LOGE(tag, "Error in GAP discovery procedure. rc = %d", rc);
+        ESP_LOGE(tag, "Error in GAP discovery procedure. rc = 0x%04x", rc);
+        dgr_error();
     }
 }
 
@@ -133,21 +136,18 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	        // new connection established or connection attempt failed
 	        if(event->connect.status != 0) {
 	            // connection attempt failed
-	            ESP_LOGE(tag, "Connection attempt failed. error code: %d",
-	                    event->connect.status);
+	            ESP_LOGE(tag, "Connection attempt failed. error code: 0x%04x",
+	                event->connect.status);
 
-                // rerun scan
-                dgr_start_scan();
-                return 0;
+                dgr_error();
 	        } else {
 	            // connection successfully
 	            ESP_LOGI(tag, "Connection successfull. handle = %d",
-	                    event->connect.conn_handle);
+	                event->connect.conn_handle);
 	            // TODO: remove or make debug output?
                 struct ble_gap_conn_desc conn_desc;
                 ble_gap_conn_find(event->enc_change.conn_handle, &conn_desc);
                 dgr_print_conn_sec_state(conn_desc.sec_state);
-
 
                 // start discovery of service
                 dgr_discover_services(event->connect.conn_handle);
@@ -166,8 +166,8 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 		case BLE_GAP_EVENT_DISC_COMPLETE:
 			// discovery completes when timed out or when
 			// a connection is initiated (?)
-			ESP_LOGI(tag, "GAP discovery procedure completed, reason = %d",
-					event->disc_complete.reason);
+			ESP_LOGI(tag, "GAP discovery procedure completed, reason = 0x%04x",
+			    event->disc_complete.reason);
 
 			if(event->disc_complete.reason == 0) {
 			    // rerun scan for timed out scan
@@ -186,7 +186,7 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 
 	    case BLE_GAP_EVENT_DISCONNECT:
 	        ESP_LOGI(tag, "Disconnect: handle = %d, reason = 0x%04x",
-                       event->disconnect.conn.conn_handle, event->disconnect.reason);
+	            event->disconnect.conn.conn_handle, event->disconnect.reason);
 
 
             ESP_LOGI(tag, "Going to deep sleep for %d seconds", SLEEP_BETWEEN_READINGS);
@@ -201,7 +201,7 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
             dgr_print_conn_sec_state(conn_desc.sec_state);
 
             dgr_send_notification_enable_msg(event->enc_change.conn_handle,
-                                             &control_uuid.u, dgr_send_control_enable_notif_cb, 1);
+                &control_uuid.u, dgr_send_control_enable_notif_cb, 1);
 	        return 0;
 
 		default:

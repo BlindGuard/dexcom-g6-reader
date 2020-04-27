@@ -23,7 +23,8 @@ dgr_save_to_ringbuffer(const uint8_t *in, uint8_t length) {
         UBaseType_t res = xRingbufferSend(rbuf_handle, in, length, pdMS_TO_TICKS(5000));
 
         if (res != pdTRUE) {
-            ESP_LOGE(tag_stg, "Error while writing into ringbuffer. rc = %d", res);
+            ESP_LOGE(tag_stg, "Error while writing into ringbuffer. rc = 0x%04x", res);
+            dgr_error();
         }
     } else {
         ESP_LOGE(tag_stg, "Ringbuffer is full. Printing debug info.");

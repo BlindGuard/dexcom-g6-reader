@@ -144,7 +144,7 @@ list_elm* dgr_create_svc_list_elm(struct ble_gatt_svc svc);
 list_elm* dgr_create_dsc_list_elm(struct ble_gatt_dsc dsc);
 list_elm* dgr_create_chr_list_elm(struct ble_gatt_chr chr);
 void dgr_add_to_list(list *l, list_elm *le);
-int dgr_find_chr_by_uuid(list *l, const ble_uuid_t *uuid, struct ble_gatt_chr *out);
+int dgr_find_chr_by_uuid(const ble_uuid_t *uuid, struct ble_gatt_chr *out);
 void dgr_print_list(list *l);
 void dgr_print_list_elm(list_elm *le);
 

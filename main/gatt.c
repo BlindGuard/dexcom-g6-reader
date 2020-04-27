@@ -39,7 +39,8 @@ dgr_discover_characteristics(uint16_t conn_handle) {
     int rc = ble_gattc_disc_all_chrs(conn_handle, 1, 65535, dgr_discover_chr_cb, NULL);
 
     if (rc != 0) {
-        ESP_LOGE(tag_gatt, "Error calling characteristics discovery. rc = 0x%x", rc);
+        ESP_LOGE(tag_gatt, "Error calling characteristics discovery. rc = 0x%04x", rc);
+        dgr_error();
     }
 }
 
@@ -48,7 +49,8 @@ dgr_discover_descriptors(uint16_t conn_handle) {
     int rc = ble_gattc_disc_all_dscs(conn_handle, 1, 65535, dgr_discover_dsc_cb, NULL);
 
     if(rc != 0) {
-        ESP_LOGE(tag_gatt, "Error calling descriptor discovery. rc = 0x%x", rc);
+        ESP_LOGE(tag_gatt, "Error calling descriptor discovery. rc = 0x%04x", rc);
+        dgr_error();
     }
 }
 
@@ -58,7 +60,8 @@ dgr_discover_services(uint16_t conn_handle) {
     int rc = ble_gattc_disc_all_svcs(conn_handle, dgr_discover_service_cb, NULL);
 
     if (rc != 0) {
-        ESP_LOGE(tag_gatt, "Error calling service discovery. rc = 0x%x", rc);
+        ESP_LOGE(tag_gatt, "Error calling service discovery. rc = 0x%04x", rc);
+        dgr_error();
     }
 }
 
@@ -122,7 +125,7 @@ dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid, b
     char buf[BLE_UUID_STR_LEN];
     int rc;
 
-    dgr_find_chr_by_uuid(&characteristics, uuid, &uh);
+    dgr_find_chr_by_uuid(uuid, &uh);
     if(uh.val_handle != 0) {
         handle = uh.val_handle + 1; // cccd lies directly after the corresponding characteristic
 
@@ -130,11 +133,13 @@ dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid, b
         ESP_LOGI(tag_gatt, "Enabling notifications for: %s.", buf);
         rc = ble_gattc_write_flat(conn_handle, handle, data, sizeof data, cb, NULL);
         if (rc != 0) {
-            ESP_LOGE(tag_gatt, "Error while enabling notifications. handle = %d, rc = %d",
-                     handle, rc);
+            ESP_LOGE(tag_gatt, "Error while enabling notifications. handle = %d, rc = 0x%04x",
+                handle, rc);
+            dgr_error();
         }
     } else {
         ESP_LOGE(tag_gatt, "Could not find val_handle for control uuid.");
+        dgr_error();
     }
 }
 
@@ -144,7 +149,7 @@ dgr_write_auth_char(uint16_t conn_handle, ble_gatt_attr_fn *cb, struct os_mbuf *
     uint16_t auth_attr_handle;
     struct ble_gatt_chr uh;
 
-    dgr_find_chr_by_uuid(&characteristics, &authentication_uuid.u, &uh);
+    dgr_find_chr_by_uuid(&authentication_uuid.u, &uh);
 
     if(uh.val_handle != 0) {
         auth_attr_handle = uh.val_handle;
@@ -153,9 +158,11 @@ dgr_write_auth_char(uint16_t conn_handle, ble_gatt_attr_fn *cb, struct os_mbuf *
         if(rc != 0) {
             ESP_LOGE(tag_gatt, "Error while writing characteristic. handle = 0x%04x, rc = 0x%04x",
                 auth_attr_handle, rc);
+            dgr_error();
         }
     } else {
         ESP_LOGE(tag_gatt, "Could not find val_handle for authentication uuid.");
+        dgr_error();
     }
 }
 
@@ -165,7 +172,7 @@ dgr_write_control_char(uint16_t conn_handle, ble_gatt_attr_fn *cb, struct os_mbu
     uint16_t cont_attr_handle;
     struct ble_gatt_chr uh;
 
-    rc = dgr_find_chr_by_uuid(&characteristics, &control_uuid.u, &uh);
+    rc = dgr_find_chr_by_uuid(&control_uuid.u, &uh);
 
     if(rc == 0) {
         cont_attr_handle = uh.val_handle;
@@ -174,9 +181,11 @@ dgr_write_control_char(uint16_t conn_handle, ble_gatt_attr_fn *cb, struct os_mbu
         if(rc != 0) {
             ESP_LOGE(tag_gatt, "Error while writing characteristic. handle = 0x%04x, rc = 0x%04x",
                 cont_attr_handle, rc);
+            dgr_error();
         }
     } else {
         ESP_LOGE(tag_gatt, "Could not find val_handle for control uuid.");
+        dgr_error();
     }
 }
 
@@ -266,16 +275,18 @@ dgr_read_auth_char(uint16_t conn_handle, ble_gatt_attr_fn *cb) {
     int rc;
     struct ble_gatt_chr uh;
 
-    rc = dgr_find_chr_by_uuid(&characteristics, &authentication_uuid.u, &uh);
+    rc = dgr_find_chr_by_uuid(&authentication_uuid.u, &uh);
 
     if(rc == 0) {
         rc = ble_gattc_read(conn_handle, uh.val_handle, cb, NULL);
         if(rc != 0) {
-            ESP_LOGE(tag_gatt, "Error while reading characteristic. handle = %d, rc = %d",
-                     uh.val_handle, rc);
+            ESP_LOGE(tag_gatt, "Error while reading characteristic. handle = %d, rc = 0x%04x",
+                uh.val_handle, rc);
+            dgr_error();
         }
     } else {
         ESP_LOGE(tag_gatt, "Could not find val_handle for authentication uuid.");
+        dgr_error();
     }
 }
 
@@ -314,7 +325,7 @@ dgr_discover_service_cb(uint16_t conn_handle, const struct ble_gatt_error *error
         ESP_LOGI(tag_gatt, "Service discovery : finished.");
         dgr_discover_descriptors(conn_handle);
     } else {
-        ESP_LOGI(tag_gatt, "Service discovery : status=%d, att_handle=%d",
+        ESP_LOGI(tag_gatt, "Service discovery : status = %d, att_handle = %d",
                  error->status, error->att_handle);
 
         if (service != NULL) {
@@ -325,6 +336,7 @@ dgr_discover_service_cb(uint16_t conn_handle, const struct ble_gatt_error *error
             return 0;
         } else {
             ESP_LOGE(tag_gatt, "Service discovery : Service is NULL");
+            dgr_error();
         }
     }
 
@@ -361,6 +373,7 @@ dgr_discover_chr_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
             dgr_add_to_list(&characteristics, le);
         } else {
             ESP_LOGE(tag_gatt, "Characteristics discovery: characteristic is NULL");
+            dgr_error();
         }
     }
 
@@ -382,6 +395,9 @@ dgr_discover_dsc_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
             //dgr_print_list_elm(le);
 
             dgr_add_to_list(&descriptors, le);
+        } else {
+            ESP_LOGE(tag_gatt, "Descriptor discovery: descriptor is NULL");
+            dgr_error();
         }
     }
 
@@ -424,9 +440,11 @@ dgr_read_auth_challenge_cb(uint16_t conn_handle, const struct ble_gatt_error *er
         } else {
             ESP_LOGE(tag_gatt, "Received encrypted token does not have the expected value.");
             dgr_print_token_details();
+            dgr_error();
         }
     } else {
         ESP_LOGE(tag_gatt, "[02] AuthChallenge: mbuf not initialized");
+        dgr_error();
     }
     return 0;
 }
@@ -453,7 +471,9 @@ dgr_read_auth_status_cb(uint16_t conn_handle, const struct ble_gatt_error *error
         dgr_send_keep_alive_msg(conn_handle, 25);
     } else {
         ESP_LOGE(tag_gatt, "[04] AuthStatus: read callback: mbuf not initialized");
+        dgr_error();
     }
+
     return 0;
 }
 

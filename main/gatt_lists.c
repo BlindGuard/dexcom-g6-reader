@@ -68,12 +68,8 @@ dgr_create_svc_list_elm(struct ble_gatt_svc svc) {
 }
 
 int
-dgr_find_chr_by_uuid(list *l, const ble_uuid_t *uuid, struct ble_gatt_chr *out) {
-    list_elm le = *l->head;
-    if(le.type != chr_lst_elm) {
-        ESP_LOGE(tag_chrs, "Called dgr_find_chr_by_uuid with a list not containing characteristics.");
-        return -1;
-    }
+dgr_find_chr_by_uuid(const ble_uuid_t *uuid, struct ble_gatt_chr *out) {
+    list_elm le = *characteristics.head;
 
     while(true) {
         if(ble_uuid_cmp(uuid, &(le.chr.uuid.u)) == 0) {
@@ -85,7 +81,7 @@ dgr_find_chr_by_uuid(list *l, const ble_uuid_t *uuid, struct ble_gatt_chr *out) 
             char buf[BLE_UUID_STR_LEN];
             ble_uuid_to_str(uuid, buf);
             ESP_LOGE(tag_chrs, "Could not find uuid = %s in characteristics list.", buf);
-            return -1;
+            dgr_error();
         }
     }
 }
