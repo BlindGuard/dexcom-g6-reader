@@ -275,7 +275,7 @@ dgr_parse_glucose_msg(const uint8_t *data, uint8_t length, uint8_t conn_handle) 
         ESP_LOGI(tag_msg, "\treceived crc = 0x%02x, calculated crc = 0x%02x", crc, crc_calc);
 
         dgr_save_to_ringbuffer(data, length);
-        dgr_check_for_backfill_and_sleep(conn_handle, 0);
+        dgr_check_for_backfill_and_sleep(conn_handle, sequence);
     } else {
         ESP_LOGE(tag_msg, "Received GlucoseRx message has wrong length(%d).", length);
         dgr_error();
