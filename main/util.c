@@ -149,3 +149,39 @@ write_u16_le(uint8_t *bytes, uint32_t in) {
     bytes[0] = in;
     bytes[1] = in >> 8U;
 }
+
+char*
+translate_transmitter_state(uint8_t state) {
+    switch(state) {
+        case TRANSMITTER_STATE_OK:
+            return "OK";
+        case TRANSMITTER_STATE_BATT_LOW:
+            return "BATTERY LOW";
+        case TRANSMITTER_STATE_BRICKED:
+            return "BRICKED";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+char*
+translate_calibration_state(uint8_t state) {
+    switch(state) {
+        case CALIB_STATE_OK:
+            return "OK";
+        case CALIB_STATE_NEED_CALIBRATION:
+            return "NEED CALIBRATION";
+        case CALIB_STATE_NEED_FIRST_CALIBRATION:
+            return "NEED INITIAL FIRST CALIBRATION";
+        case CALIB_STATE_NEED_SECOND_CALIBRATION:
+            return "NEED INITIAL SECOND CALIBRATION";
+        case CALIB_STATE_SENSOR_FAILED:
+            return "SENSOR FAILED";
+        case CALIB_STATE_STOPPED:
+            return "SENSOR STOPPED";
+        case CALIB_STATE_WARMUP:
+            return "WARMUP";
+        default:
+            return "UNKNOWN";
+    }
+}

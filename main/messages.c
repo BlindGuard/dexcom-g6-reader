@@ -6,6 +6,8 @@
 
 #include "dexcom_g6_reader.h"
 
+
+
 const char* tag_msg = "[Dexcom-G6-Reader][msg]";
 unsigned char token_bytes[8];
 unsigned char enc_token_bytes[8];
@@ -244,35 +246,45 @@ dgr_parse_auth_status_msg(const uint8_t *data, uint8_t length) {
 void
 dgr_parse_glucose_msg(const uint8_t *data, uint8_t length, uint8_t conn_handle) {
     if(length >= 16) {
-        uint8_t status = data[1];
+        uint8_t transmitter_state = data[1];
         uint32_t sequence = make_u32_from_bytes_le(&data[2]);
         uint32_t timestamp = make_u32_from_bytes_le(&data[6]);
         uint16_t glucose = make_u16_from_bytes_le(&data[10]) & 0xfffU;
-        uint8_t state = data[12];
+        uint8_t calibration_state = data[12];
         uint8_t trend = data[13];
         uint16_t crc = make_u16_from_bytes_le(&data[length - 2]);
         uint16_t crc_calc = ~crc16_be((uint16_t)~0x0000, data, length - 2);
 
-        if(crc != crc_calc) {
-            ESP_LOGE(tag_msg, "GlucoseRx : Calculated CRC does not match received CRC.");
-            dgr_error();
-        }
+        ESP_LOGI(tag_msg, "[=========== GlucoseRx ===========]");
+        ESP_LOGI(tag_msg, "\ttransmitter state = %s (0x%x)", translate_transmitter_state(transmitter_state),
+            transmitter_state);
+        ESP_LOGI(tag_msg, "\tcalibration state = %s (0x%x)", translate_calibration_state(calibration_state),
+                 calibration_state);
+        ESP_LOGI(tag_msg, "\tsequence  = 0x%x", sequence);
+        ESP_LOGI(tag_msg, "\ttimestamp = 0x%x", timestamp);
+        ESP_LOGI(tag_msg, "\tglucose   = %d", glucose);
+        ESP_LOGI(tag_msg, "\ttrend     = 0x%x", trend);
+        ESP_LOGI(tag_msg, "\treceived crc = 0x%02x, calculated crc = 0x%02x", crc, crc_calc);
 
         if(last_sequence - sequence == 0) {
             ESP_LOGE(tag_msg, "Duplicate Reading.");
             dgr_error();
         } else if(sequence < last_sequence) {
             ESP_LOGE(tag_msg, "Out of Band Reading. last_sequence = %d, sequence = %d",
-                last_sequence, sequence);
+                     last_sequence, sequence);
             dgr_error();
         }
 
-        ESP_LOGI(tag_msg, "[=========== GlucoseRx ===========]");
-        ESP_LOGI(tag_msg, "\tstatus    = 0x%x, state = 0x%x, trend = 0x%x", status, state, trend);
-        ESP_LOGI(tag_msg, "\tsequence  = 0x%x", sequence);
-        ESP_LOGI(tag_msg, "\ttimestamp = 0x%x", timestamp);
-        ESP_LOGI(tag_msg, "\tglucose   = %d", glucose);
-        ESP_LOGI(tag_msg, "\treceived crc = 0x%02x, calculated crc = 0x%02x", crc, crc_calc);
+        if(crc != crc_calc) {
+            ESP_LOGE(tag_msg, "GlucoseRx : Calculated CRC does not match received CRC.");
+            dgr_error();
+        }
+
+        if(calibration_state != CALIB_STATE_OK) {
+            ESP_LOGE(tag_msg, "GlucoseRx : Transmitter is not in OK state. state = %s (0x%02x)",
+                translate_calibration_state(calibration_state), calibration_state);
+            dgr_error();
+        }
 
         dgr_save_to_ringbuffer(data, length);
         dgr_check_for_backfill_and_sleep(conn_handle, sequence);

@@ -29,6 +29,7 @@ dgr_error() {
     ESP_LOGE(tag, "Error count = %d", error_count);
 
     ESP_LOGE(tag, "Going to deep sleep after error for %d seconds", SLEEP_AFTER_ERROR);
+    dgr_print_rbuf(true);
     esp_deep_sleep(SLEEP_AFTER_ERROR * 1000000); // time is in microseconds
 }
 
@@ -190,6 +191,7 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 
 
             ESP_LOGI(tag, "Going to deep sleep for %d seconds", SLEEP_BETWEEN_READINGS);
+            dgr_print_rbuf(true);
             esp_deep_sleep(SLEEP_BETWEEN_READINGS * 1000000); // time is in microseconds
 
 

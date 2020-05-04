@@ -10,21 +10,35 @@
 #define SLEEP_BETWEEN_READINGS      600 // in seconds (240)
 #define SLEEP_AFTER_ERROR           30 // in seconds
 
+// values for the calibration state
+#define CALIB_STATE_STOPPED                     0x01
+#define CALIB_STATE_WARMUP                      0x02
+#define CALIB_STATE_OK                          0x06
+#define CALIB_STATE_NEED_CALIBRATION            0x07
+#define CALIB_STATE_NEED_FIRST_CALIBRATION      0x04
+#define CALIB_STATE_NEED_SECOND_CALIBRATION     0x05
+#define CALIB_STATE_SENSOR_FAILED               0x0b
+
+// values for the transmitter state
+#define TRANSMITTER_STATE_OK                    0x0
+#define TRANSMITTER_STATE_BATT_LOW              0x81
+#define TRANSMITTER_STATE_BRICKED               0x83
+
 // Opcodes
-#define AUTH_REQUEST_TX_OPCODE      0x1
-#define AUTH_CHALLENGE_RX_OPCODE    0x3
-#define AUTH_CHALLENGE_TX_OPCODE    0x4
-#define AUTH_STATUS_RX_OPCODE       0x5
-#define KEEP_ALIVE_TX_OPCODE        0x6
-#define BOND_REQUEST_TX_OPCODE      0x7
-#define BOND_REQUEST_RX_OPCODE      0x8
-#define DISCONNECT_TX_OPCODE        0x9
-#define TIME_TX_OPCODE              0x24
-#define TIME_RX_OPCODE              0x25
-#define GLUCOSE_TX_OPCODE           0x4e
-#define GLUCOSE_RX_OPCODE           0x4f
-#define BACKFILL_TX_OPCODE          0x50
-#define BACKFILL_RX_OPCODE          0x51
+#define AUTH_REQUEST_TX_OPCODE                  0x1
+#define AUTH_CHALLENGE_RX_OPCODE                0x3
+#define AUTH_CHALLENGE_TX_OPCODE                0x4
+#define AUTH_STATUS_RX_OPCODE                   0x5
+#define KEEP_ALIVE_TX_OPCODE                    0x6
+#define BOND_REQUEST_TX_OPCODE                  0x7
+#define BOND_REQUEST_RX_OPCODE                  0x8
+#define DISCONNECT_TX_OPCODE                    0x9
+#define TIME_TX_OPCODE                          0x24
+#define TIME_RX_OPCODE                          0x25
+#define GLUCOSE_TX_OPCODE                       0x4e
+#define GLUCOSE_RX_OPCODE                       0x4f
+#define BACKFILL_TX_OPCODE                      0x50
+#define BACKFILL_RX_OPCODE                      0x51
 
 extern const char *transmitter_id;
 
@@ -83,7 +97,7 @@ extern uint32_t last_sequence;
 void dgr_init_ringbuffer();
 void dgr_save_to_ringbuffer(const uint8_t *in, uint8_t length);
 void dgr_check_for_backfill_and_sleep(uint16_t conn_handle, uint32_t sequence);
-void dgr_print_rbuf();
+void dgr_print_rbuf(bool keep_items);
 
 /**  util.c **/
 char* addr_to_string(const void *addr);
@@ -94,6 +108,8 @@ uint32_t make_u32_from_bytes_le(const uint8_t *bytes);
 uint16_t make_u16_from_bytes_le(const uint8_t *bytes);
 void write_u32_le(uint8_t *bytes, uint32_t in);
 void write_u16_le(uint8_t *bytes, uint32_t in);
+char* translate_transmitter_state(uint8_t state);
+char* translate_calibration_state(uint8_t state);
 
 /**  gatt.c **/
 void dgr_discover_services(uint16_t conn_handle);
