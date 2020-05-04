@@ -181,11 +181,11 @@ dgr_build_backfill_tx_msg(struct os_mbuf *om) {
     write_u32_le(&msg[8], backfill_end_time);
 
     // crc
-    crc = ~crc16_be((uint16_t)~0x0000, msg, 17);
+    crc = ~crc16_be((uint16_t)~0x0000, msg, 18);
     write_u16_le(&msg[18], crc);
 
     if(om) {
-        rc = os_mbuf_copyinto(om, 0, msg, 19);
+        rc = os_mbuf_copyinto(om, 0, msg, 20);
         if(rc != 0) {
             ESP_LOGE(tag_msg, "Error while copying into mbuf. rc = 0x%04x", rc);
             dgr_error();
