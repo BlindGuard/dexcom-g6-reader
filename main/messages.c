@@ -184,6 +184,9 @@ dgr_build_backfill_tx_msg(struct os_mbuf *om) {
     crc = ~crc16_be((uint16_t)~0x0000, msg, 18);
     write_u16_le(&msg[18], crc);
 
+    ESP_LOGI(tag_msg, "BackfillTx : requesting backfill from %x to %x",
+        backfill_start_time, backfill_end_time);
+
     if(om) {
         rc = os_mbuf_copyinto(om, 0, msg, 20);
         if(rc != 0) {
@@ -303,17 +306,15 @@ dgr_parse_backfill_msg(const uint8_t *data, uint8_t length) {
         uint8_t unknown_2 = data[3];
         uint32_t start_time = make_u32_from_bytes_le(&data[4]);
         uint32_t end_time = make_u32_from_bytes_le(&data[8]);
-        uint32_t current_time = make_u32_from_bytes_le(&data[12]);
-        uint32_t glucose = make_u16_from_bytes_le(&data[16]);
-        uint8_t type = data[18];
-        uint8_t trend = data[19];
+        uint8_t crc = make_u16_from_bytes_le(&data[18]);
+        uint16_t crc_calc = ~crc16_be((uint16_t)~0x0000, data, length - 2);
 
         ESP_LOGI(tag_msg, "[=========== BackfillRx ===========]");
-        ESP_LOGI(tag_msg, "\tstatus = 0x%x, type = 0x%x, trend = 0x%x", status, type, trend);
+        ESP_LOGI(tag_msg, "\tstatus = 0x%x", status);
         ESP_LOGI(tag_msg, "\tstart_time   = 0x%x", start_time);
         ESP_LOGI(tag_msg, "\tend_time     = 0x%x", end_time);
-        ESP_LOGI(tag_msg, "\tcurrent_time = 0x%x", current_time);
-        ESP_LOGI(tag_msg, "\tglucose      = %d", glucose);
+        ESP_LOGI(tag_msg, "\treceived crc = 0x%x", crc);
+        ESP_LOGI(tag_msg, "\tcalculated crc = 0x%x", crc_calc);
     } else {
         ESP_LOGE(tag_msg, "Received Backfill message has wrong length(%d).", length);
         dgr_error();
@@ -335,7 +336,7 @@ dgr_parse_time_msg(const uint8_t *data, uint8_t length, uint16_t conn_handle) {
         ESP_LOGI(tag_msg, "\tsession start time = 0x%x", session_start_time);
 
         // set backfill related times
-        backfill_start_time = current_time - (60*60*3); // three hours before
+        backfill_start_time = current_time - (60*30); // 30 mins before
         backfill_end_time = current_time - 60; // one minute before
 
         dgr_send_glucose_tx_msg(conn_handle);
