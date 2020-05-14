@@ -18,6 +18,10 @@ mbedtls_aes_context aes_ecb_ctx;
 unsigned char key[16];
 uint32_t backfill_start_time;
 uint32_t backfill_end_time;
+uint8_t next_backfill_sequence = 1;
+uint8_t backfill_buffer[500];
+uint32_t backfill_buffer_pos = 0;
+bool expecting_backfill = false;
 
 void
 dgr_encrypt(const unsigned char in_bytes[8], unsigned char out_bytes[8]) {
@@ -165,7 +169,7 @@ dgr_build_glucose_tx_msg(struct os_mbuf *om) {
 
 void
 dgr_build_backfill_tx_msg(struct os_mbuf *om) {
-    uint8_t msg[20];
+    uint8_t msg[20] = {0};
     uint16_t crc;
     int rc;
 
@@ -289,7 +293,7 @@ dgr_parse_glucose_msg(const uint8_t *data, uint8_t length, uint8_t conn_handle) 
             dgr_error();
         }
 
-        dgr_save_to_ringbuffer(data, length);
+        dgr_save_to_ringbuffer(timestamp, glucose, calibration_state, trend);
         dgr_check_for_backfill_and_sleep(conn_handle, sequence);
     } else {
         ESP_LOGE(tag_msg, "Received GlucoseRx message has wrong length(%d).", length);
@@ -298,15 +302,14 @@ dgr_parse_glucose_msg(const uint8_t *data, uint8_t length, uint8_t conn_handle) 
 }
 
 void
-dgr_parse_backfill_msg(const uint8_t *data, uint8_t length) {
+dgr_parse_backfill_status_msg(const uint8_t *data, uint8_t length) {
     if(length == 20) {
-        //TODO: parsing, saving
         uint8_t status = data[1];
         uint8_t unknown_1 = data[2];
         uint8_t unknown_2 = data[3];
         uint32_t start_time = make_u32_from_bytes_le(&data[4]);
         uint32_t end_time = make_u32_from_bytes_le(&data[8]);
-        uint8_t crc = make_u16_from_bytes_le(&data[18]);
+        uint16_t crc = make_u16_from_bytes_le(&data[18]);
         uint16_t crc_calc = ~crc16_be((uint16_t)~0x0000, data, length - 2);
 
         ESP_LOGI(tag_msg, "[=========== BackfillRx ===========]");
@@ -315,8 +318,10 @@ dgr_parse_backfill_msg(const uint8_t *data, uint8_t length) {
         ESP_LOGI(tag_msg, "\tend_time     = 0x%x", end_time);
         ESP_LOGI(tag_msg, "\treceived crc = 0x%x", crc);
         ESP_LOGI(tag_msg, "\tcalculated crc = 0x%x", crc_calc);
+
+        expecting_backfill = true;
     } else {
-        ESP_LOGE(tag_msg, "Received Backfill message has wrong length(%d).", length);
+        ESP_LOGE(tag_msg, "Received Backfill status message has wrong length(%d).", length);
         dgr_error();
     }
 }
@@ -342,6 +347,39 @@ dgr_parse_time_msg(const uint8_t *data, uint8_t length, uint16_t conn_handle) {
         dgr_send_glucose_tx_msg(conn_handle);
     } else {
         ESP_LOGE(tag_msg, "Received Time message has wrong length(%d).", length);
+        dgr_error();
+    }
+}
+
+void
+dgr_parse_backfill_data_msg(const uint8_t *data, const uint8_t length) {
+    if(length > 2) {
+        uint8_t sequence = data[0];
+        uint8_t identifier = data[1];
+
+        if(sequence == next_backfill_sequence) {
+            next_backfill_sequence++;
+
+            if(sequence == 1) {
+                uint16_t request_counter = make_u16_from_bytes_le(&data[2]);
+                uint16_t unknown = make_u16_from_bytes_le(&data[4]);
+                ESP_LOGI(tag_msg, "Backfill:");
+                ESP_LOGI(tag_msg, "\trequest counter = %d", request_counter);
+
+                ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, &data[6], length - 6, ESP_LOG_INFO);
+                memcpy(&backfill_buffer[backfill_buffer_pos], &data[6], length - 6);
+                backfill_buffer_pos += length - 6;
+            } else {
+                ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, &data[2], length - 2, ESP_LOG_INFO);
+                memcpy(&backfill_buffer[backfill_buffer_pos], &data[2], length - 2);
+                backfill_buffer_pos += length - 2;
+            }
+        } else {
+            ESP_LOGE(tag_msg, "Received out-of-order Backfill data which is not supported.");
+            dgr_error();
+        }
+    } else {
+        ESP_LOGE(tag_msg, "Received Backfill data message has wrong length(%d).", length);
         dgr_error();
     }
 }

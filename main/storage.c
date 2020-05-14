@@ -17,10 +17,17 @@ dgr_init_ringbuffer() {
 }
 
 void
-dgr_save_to_ringbuffer(const uint8_t *in, uint8_t length) {
+dgr_save_to_ringbuffer(uint32_t timestamp, uint16_t glucose, uint8_t calibration_state, uint8_t trend) {
     size_t free_size = xRingbufferGetCurFreeSize(rbuf_handle);
-    if(free_size >= 28) {
-        UBaseType_t res = xRingbufferSend(rbuf_handle, in, length, pdMS_TO_TICKS(5000));
+    // 8 bytes data + 8 byte header
+    if(free_size >= 16) {
+        uint8_t in[8];
+        write_u32_le(in, timestamp);
+        write_u16_le(&in[4], glucose);
+        in[6] = calibration_state;
+        in[7] = trend;
+
+        UBaseType_t res = xRingbufferSend(rbuf_handle, in, 8, pdMS_TO_TICKS(5000));
 
         if (res != pdTRUE) {
             ESP_LOGE(tag_stg, "Error while writing into ringbuffer. rc = 0x%04x", res);
@@ -58,8 +65,30 @@ dgr_check_for_backfill_and_sleep(uint16_t conn_handle, uint32_t sequence) {
 }
 
 void
+dgr_parse_backfill() {
+    int i = 0;
+
+    while(i < backfill_buffer_pos) {
+        uint32_t timestamp = make_u32_from_bytes_le(&backfill_buffer[i]);
+        uint16_t glucose = make_u16_from_bytes_le(&backfill_buffer[i + 4]);
+        uint8_t calibration_state = backfill_buffer[i + 6];
+        uint8_t trend = backfill_buffer[i + 7];
+
+        ESP_LOGI(tag_stg, "[=========== Backfill Data ===========]");
+        ESP_LOGI(tag_stg, "\ttimestamp         = 0x%x", timestamp);
+        ESP_LOGI(tag_stg, "\tglucose           = %d", glucose);
+        ESP_LOGI(tag_stg, "\tcalibration state = %s",
+            translate_calibration_state(calibration_state));
+        ESP_LOGI(tag_stg, "\ttrend             = 0x%x", trend);
+        i += 8;
+
+        dgr_save_to_ringbuffer(timestamp, glucose, calibration_state, trend);
+    }
+}
+
+void
 dgr_print_rbuf(bool keep_items) {
-    uint8_t *buffer_save[BUFFER_SIZE];
+    uint8_t buffer_save[BUFFER_SIZE];
     int i = 0;
 
     size_t item_size;
@@ -67,33 +96,34 @@ dgr_print_rbuf(bool keep_items) {
 
     xRingbufferPrintInfo(rbuf_handle);
     while(data != NULL) {
-        uint8_t status = data[1];
-        uint32_t sequence = make_u32_from_bytes_le(&data[2]);
-        uint32_t timestamp = make_u32_from_bytes_le(&data[6]);
-        uint16_t glucose = make_u16_from_bytes_le(&data[10]) & 0xfffU;
-        uint8_t state = data[12];
-        uint8_t trend = data[13];
-        uint16_t crc = make_u16_from_bytes_le(&data[item_size - 2]);
-        uint16_t crc_calc = ~crc16_be((uint16_t)~0x0000, data, item_size - 2);
+        uint32_t timestamp = make_u32_from_bytes_le(data);
+        uint16_t glucose = make_u16_from_bytes_le(&data[4]);
+        uint8_t calibration_state = data[6];
+        uint8_t trend = data[7];
 
         ESP_LOGI(tag_stg, "[=========== RingbufItem (size=%d) ===========]", item_size);
-        ESP_LOG_BUFFER_HEX_LEVEL(tag_stg, data, item_size, ESP_LOG_INFO);
-        ESP_LOGI(tag_stg, "\tstatus    = 0x%x, state = 0x%x, trend = 0x%x", status, state, trend);
-        ESP_LOGI(tag_stg, "\tsequence  = 0x%x", sequence);
         ESP_LOGI(tag_stg, "\ttimestamp = 0x%x", timestamp);
         ESP_LOGI(tag_stg, "\tglucose   = %d", glucose);
-        ESP_LOGI(tag_stg, "\treceived crc = 0x%02x, calculated crc = 0x%02x", crc, crc_calc);
+        ESP_LOGI(tag_stg, "\tcalibration state = %s",
+                 translate_calibration_state(calibration_state));
+        ESP_LOGI(tag_stg, "\ttrend             = 0x%x", trend);
 
         if(keep_items) {
-            buffer_save[i++ * item_size] = data;
+            memcpy(&buffer_save[i++ * item_size], data, item_size);
         }
         vRingbufferReturnItem(rbuf_handle, data);
         data = (uint8_t *)xRingbufferReceive(rbuf_handle, &item_size, pdMS_TO_TICKS(1000));
     }
 
+    // resave items
     if(keep_items) {
         for (int j = 0; j < i; j++) {
-            dgr_save_to_ringbuffer(buffer_save[j * 18], 18);
+            UBaseType_t res = xRingbufferSend(rbuf_handle, &buffer_save[j * item_size], 8, pdMS_TO_TICKS(5000));
+
+            if (res != pdTRUE) {
+                ESP_LOGE(tag_stg, "Error while writing into ringbuffer. rc = 0x%04x", res);
+                dgr_error();
+            }
         }
     }
 }

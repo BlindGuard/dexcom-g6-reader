@@ -48,6 +48,8 @@ extern const ble_uuid128_t control_uuid;
 extern const ble_uuid128_t authentication_uuid;
 extern const ble_uuid128_t backfill_uuid;
 
+extern bool expecting_backfill;
+
 /** mbuf **/
 #define MBUF_PKTHDR_OVERHEAD        sizeof(struct os_mbuf_pkthdr)
 #define MBUF_MEMBLOCK_OVERHEAD      sizeof(struct os_mbuf) + MBUF_PKTHDR_OVERHEAD
@@ -95,8 +97,9 @@ bool dgr_check_bond_state(uint16_t conn_handle);
 /** storage.c **/
 extern uint32_t last_sequence;
 void dgr_init_ringbuffer();
-void dgr_save_to_ringbuffer(const uint8_t *in, uint8_t length);
+void dgr_save_to_ringbuffer(uint32_t timestamp, uint16_t glucose, uint8_t calibration_state, uint8_t trend);
 void dgr_check_for_backfill_and_sleep(uint16_t conn_handle, uint32_t sequence);
+void dgr_parse_backfill();
 void dgr_print_rbuf(bool keep_items);
 
 /**  util.c **/
@@ -165,6 +168,8 @@ void dgr_print_list(list *l);
 void dgr_print_list_elm(list_elm *le);
 
 /**  messages.c **/
+extern uint8_t backfill_buffer[500];
+extern uint32_t backfill_buffer_pos;
 void dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid,
     ble_gatt_attr_fn *cb, uint8_t type);
 void dgr_build_auth_request_msg(struct os_mbuf *om);
@@ -177,7 +182,8 @@ void dgr_build_time_tx_msg(struct os_mbuf *om);
 void dgr_parse_auth_challenge_msg(const uint8_t *data, uint8_t length, bool *correct_token);
 void dgr_parse_auth_status_msg(const uint8_t *data, uint8_t length);
 void dgr_parse_glucose_msg(const uint8_t *data, uint8_t length, uint8_t conn_handle);
-void dgr_parse_backfill_msg(const uint8_t *data, uint8_t length);
+void dgr_parse_backfill_status_msg(const uint8_t *data, uint8_t length);
+void dgr_parse_backfill_data_msg(const uint8_t *data, const uint8_t length);
 void dgr_parse_time_msg(const uint8_t *data, uint8_t length, uint16_t conn_handle);
 void dgr_create_mbuf_pool();
 void dgr_create_crypto_context();

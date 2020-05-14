@@ -189,9 +189,9 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	        ESP_LOGI(tag, "Disconnect: handle = %d, reason = 0x%04x",
 	            event->disconnect.conn.conn_handle, event->disconnect.reason);
 
-
-            ESP_LOGI(tag, "Going to deep sleep for %d seconds", SLEEP_BETWEEN_READINGS);
+	        dgr_parse_backfill();
             dgr_print_rbuf(true);
+            ESP_LOGI(tag, "Going to deep sleep for %d seconds.", SLEEP_BETWEEN_READINGS);
             esp_deep_sleep(SLEEP_BETWEEN_READINGS * 1000000); // time is in microseconds
 
 

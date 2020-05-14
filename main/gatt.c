@@ -72,29 +72,35 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
 
         dgr_print_rx_packet(om);
 
-        switch(op) {
-            case BACKFILL_RX_OPCODE: {
-                ESP_LOGI(tag_gatt, "Received backfill message.");
+        if(expecting_backfill) {
+            // backfill data starts with a sequence number
+            // and has no opcode
+            dgr_parse_backfill_data_msg(om->om_data, om->om_len);
+        } else {
+            switch (op) {
+                case BACKFILL_RX_OPCODE: {
+                    ESP_LOGI(tag_gatt, "Received backfill message.");
 
-                dgr_parse_backfill_msg(om->om_data, om->om_len);
-                break;
+                    dgr_parse_backfill_status_msg(om->om_data, om->om_len);
+                    break;
+                }
+                case TIME_RX_OPCODE: {
+                    ESP_LOGI(tag_gatt, "Received time message.");
+
+                    dgr_parse_time_msg(om->om_data, om->om_len, conn_handle);
+                    break;
+                }
+                case GLUCOSE_RX_OPCODE: {
+                    ESP_LOGI(tag_gatt, "Received glucose message.");
+
+                    dgr_parse_glucose_msg(om->om_data, om->om_len, conn_handle);
+                    break;
+                }
+
+                default:
+                    ESP_LOGE(tag_gatt, "Unhandled message with opcode = %02x", op);
+                    break;
             }
-            case TIME_RX_OPCODE: {
-                ESP_LOGI(tag_gatt, "Received time message.");
-
-                dgr_parse_time_msg(om->om_data, om->om_len, conn_handle);
-                break;
-            }
-            case GLUCOSE_RX_OPCODE: {
-                ESP_LOGI(tag_gatt, "Received glucose message.");
-
-                dgr_parse_glucose_msg(om->om_data, om->om_len, conn_handle);
-                break;
-            }
-
-            default:
-                ESP_LOGE(tag_gatt, "Unhandled message with opcode = %02x", op);
-                break;
         }
     } else {
         ESP_LOGE(tag_gatt, "Received message buffer empty.");
