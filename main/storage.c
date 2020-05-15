@@ -56,7 +56,7 @@ dgr_check_for_backfill_and_sleep(uint16_t conn_handle, uint32_t sequence) {
     } else if(sequence_diff > 1 || sequence_diff == 0) {
         // enable backfill notifications
         ESP_LOGI(tag_stg, "Sequence difference is : %d. Starting backfill.", sequence_diff);
-        dgr_send_notification_enable_msg(conn_handle, &backfill_uuid.u, dgr_send_backfill_enable_notif_cb, 0);
+        dgr_send_notification_enable_msg(conn_handle, &backfill_uuid.u, dgr_send_backfill_enable_notif_cb, 2);
     } else {
         ESP_LOGE(tag_stg, "Unexpected difference between sequences : %d", sequence_diff);
         dgr_error();

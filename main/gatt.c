@@ -115,16 +115,17 @@ void
 dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid, ble_gatt_attr_fn *cb,
     uint8_t type) {
     // enable notifications/indications by writing to the CCCD of uuid
-    uint8_t data[2];
+    uint8_t data[2] = { 0x0, 0x0 };
 
-    if(type == 1) {
-        // indication
-         data[0] = 1;
-         data[1] = 0;
-    } else {
+    if(type == 0) {
         // notification
-        data[0] = 0;
-        data[1] = 1;
+        data[0] = 0x1;
+    } else if(type == 1) {
+        // indication
+        data[0] = 0x2;
+    } else {
+        // both
+        data[0] = 0x3;
     }
     struct ble_gatt_chr uh;
     uint16_t handle = 0;
