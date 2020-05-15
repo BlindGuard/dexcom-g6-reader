@@ -366,10 +366,12 @@ dgr_parse_backfill_data_msg(const uint8_t *data, const uint8_t length) {
                 ESP_LOGI(tag_msg, "Backfill:");
                 ESP_LOGI(tag_msg, "\trequest counter = %d", request_counter);
 
+                ESP_LOGI(tag_msg, "Added these bytes to the backfill buffer:");
                 ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, &data[6], length - 6, ESP_LOG_INFO);
                 memcpy(&backfill_buffer[backfill_buffer_pos], &data[6], length - 6);
                 backfill_buffer_pos += length - 6;
             } else {
+                ESP_LOGI(tag_msg, "Added these bytes to the backfill buffer:");
                 ESP_LOG_BUFFER_HEX_LEVEL(tag_msg, &data[2], length - 2, ESP_LOG_INFO);
                 memcpy(&backfill_buffer[backfill_buffer_pos], &data[2], length - 2);
                 backfill_buffer_pos += length - 2;

@@ -68,6 +68,7 @@ void
 dgr_parse_backfill() {
     int i = 0;
 
+    ESP_LOGI(tag_stg, "Starting to parse Backfill data.");
     while(i < backfill_buffer_pos) {
         uint32_t timestamp = make_u32_from_bytes_le(&backfill_buffer[i]);
         uint16_t glucose = make_u16_from_bytes_le(&backfill_buffer[i + 4]);
@@ -77,8 +78,8 @@ dgr_parse_backfill() {
         ESP_LOGI(tag_stg, "[=========== Backfill Data ===========]");
         ESP_LOGI(tag_stg, "\ttimestamp         = 0x%x", timestamp);
         ESP_LOGI(tag_stg, "\tglucose           = %d", glucose);
-        ESP_LOGI(tag_stg, "\tcalibration state = %s",
-            translate_calibration_state(calibration_state));
+        ESP_LOGI(tag_stg, "\tcalibration state = %s (0x%x)",
+            translate_calibration_state(calibration_state), calibration_state);
         ESP_LOGI(tag_stg, "\ttrend             = 0x%x", trend);
         i += 8;
 
