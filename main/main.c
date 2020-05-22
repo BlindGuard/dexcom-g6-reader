@@ -152,8 +152,9 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 
                 // start discovery of service
                 dgr_discover_services(event->connect.conn_handle);
-	            return 0;
 	        }
+
+	        return 0;
 
 		case BLE_GAP_EVENT_DISC:
 			// event when an advertising report is received during

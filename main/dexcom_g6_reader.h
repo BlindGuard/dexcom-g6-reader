@@ -183,7 +183,7 @@ void dgr_parse_auth_challenge_msg(const uint8_t *data, uint8_t length, bool *cor
 void dgr_parse_auth_status_msg(const uint8_t *data, uint8_t length);
 void dgr_parse_glucose_msg(const uint8_t *data, uint8_t length, uint8_t conn_handle);
 void dgr_parse_backfill_status_msg(const uint8_t *data, uint8_t length);
-void dgr_parse_backfill_data_msg(const uint8_t *data, const uint8_t length);
+void dgr_parse_backfill_data_msg(const uint8_t *data, uint8_t length);
 void dgr_parse_time_msg(const uint8_t *data, uint8_t length, uint16_t conn_handle);
 void dgr_create_mbuf_pool();
 void dgr_create_crypto_context();
