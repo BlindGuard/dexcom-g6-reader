@@ -63,6 +63,14 @@ dgr_discover_services(uint16_t conn_handle) {
         ESP_LOGE(tag_gatt, "Error calling service discovery. rc = 0x%04x", rc);
         dgr_error();
     }
+
+    struct ble_gap_conn_desc conn_desc;
+    rc = ble_gap_conn_find(conn_handle, &conn_desc);
+    ESP_LOGI(tag_gatt, "Finding connection. rc = 0x%04x", rc);
+
+    if(rc == 0) {
+        ESP_LOGI(tag_gatt, "Connection found. handle = %d", conn_desc.conn_handle);
+    }
 }
 
 void
@@ -325,6 +333,7 @@ dgr_print_cb_info(const struct ble_gatt_error *error, struct ble_gatt_attr *attr
     }
 }
 
+// count nr of services, if 0 -> goto error
 int
 dgr_discover_service_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
         const struct ble_gatt_svc *service, void *arg) {
@@ -343,7 +352,20 @@ dgr_discover_service_cb(uint16_t conn_handle, const struct ble_gatt_error *error
             return 0;
         } else {
             ESP_LOGE(tag_gatt, "Service discovery : Service is NULL");
-            dgr_error();
+
+
+            struct ble_gap_conn_desc conn_desc;
+            int rc = ble_gap_conn_find(conn_handle, &conn_desc);
+            ESP_LOGI(tag_gatt, "Finding connection. rc = 0x%04x", rc);
+
+            if(rc == 0) {
+                ESP_LOGI(tag_gatt, "Connection found. handle = %d", conn_desc.conn_handle);
+            } else {
+                ESP_LOGI(tag_gatt, "No connection found.");
+            }
+
+            ESP_LOGI(tag_gatt, "Waiting if more happens..");
+            //dgr_error();
         }
     }
 
