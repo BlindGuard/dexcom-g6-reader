@@ -16,6 +16,14 @@ dgr_init_ringbuffer() {
     rbuf_handle = xRingbufferCreateStatic(BUFFER_SIZE, BUFFER_TYPE, (uint8_t*)&buffer_storage, &buffer_struct);
 }
 
+/**
+ * Saves the given values in the ringbuffer
+ *
+ * @param timestamp             Timestamp of a glucose reading
+ * @param glucose               Glucose value of a reading
+ * @param calibration_state     Calibration state of a reading
+ * @param trend                 Trend value of a reading
+ */
 void
 dgr_save_to_ringbuffer(uint32_t timestamp, uint16_t glucose, uint8_t calibration_state, uint8_t trend) {
     size_t free_size = xRingbufferGetCurFreeSize(rbuf_handle);
@@ -40,7 +48,12 @@ dgr_save_to_ringbuffer(uint32_t timestamp, uint16_t glucose, uint8_t calibration
     }
 }
 
-//TODO: backfill
+/**
+ * After a glucose reading was received, this function checks if backfill is needed.
+ *
+ * @param conn_handle           Connection handle
+ * @param sequence              Sequence number of the last glucose reading
+ */
 void
 dgr_check_for_backfill_and_sleep(uint16_t conn_handle, uint32_t sequence) {
     // dont do backfill after the first reading
@@ -56,7 +69,7 @@ dgr_check_for_backfill_and_sleep(uint16_t conn_handle, uint32_t sequence) {
     } else if(sequence_diff > 1 || sequence_diff == 0) {
         // enable backfill notifications
         ESP_LOGI(tag_stg, "Sequence difference is : %d. Starting backfill.", sequence_diff);
-        dgr_send_notification_enable_msg(conn_handle, &backfill_uuid.u, dgr_send_backfill_enable_notif_cb, 2);
+        dgr_enable_server_side_updates_msg(conn_handle, &backfill_uuid.u, dgr_send_backfill_enable_notif_cb, 2);
     } else {
         ESP_LOGE(tag_stg, "Unexpected difference between sequences : %d", sequence_diff);
         dgr_error();
@@ -64,6 +77,9 @@ dgr_check_for_backfill_and_sleep(uint16_t conn_handle, uint32_t sequence) {
 
 }
 
+/**
+ * After all backfill data is received, parse and save all of it in the ringbuffer.
+ */
 void
 dgr_parse_backfill() {
     int i = 0;
@@ -87,6 +103,12 @@ dgr_parse_backfill() {
     }
 }
 
+/**
+ * Prints content of the ringbuffer for debug purposes.
+ *
+ * @param keep_items            true if all ringbuffer items should be kept in the ringbuffer,
+ *                              false if ringbuffer items should be discarded after output
+ */
 void
 dgr_print_rbuf(bool keep_items) {
     uint8_t buffer_save[BUFFER_SIZE];

@@ -23,6 +23,12 @@ uint8_t backfill_buffer[500];
 uint32_t backfill_buffer_pos = 0;
 bool expecting_backfill = false;
 
+/**
+ * Encrypts input bytes with aes-128-ecb.
+ *
+ * @param in_bytes      Input bytes
+ * @param out_bytes     Output bytes
+ */
 void
 dgr_encrypt(const unsigned char in_bytes[8], unsigned char out_bytes[8]) {
     unsigned char aes_in[16];
@@ -51,7 +57,7 @@ dgr_encrypt(const unsigned char in_bytes[8], unsigned char out_bytes[8]) {
 }
 
 /*****************************************************************************
- *  messages                                                                 *
+ *  outgoing message building                                                *
  *****************************************************************************/
 
 void
@@ -221,7 +227,9 @@ dgr_build_time_tx_msg(struct os_mbuf *om) {
     }
 }
 
-/* parsing ----------------------------------------------------------------- */
+/*****************************************************************************
+ *  incoming message parsing                                                 *
+ *****************************************************************************/
 
 void
 dgr_parse_auth_challenge_msg(const uint8_t *data, uint8_t length, bool *correct_token) {

@@ -22,9 +22,11 @@ const char *transmitter_id = "812345";
 
 int dgr_gap_event(struct ble_gap_event *event, void *arg);
 
+/**
+ * Counts error and goes to a shorter deep sleep after they happen.
+ */
 void
 dgr_error() {
-    //TODO: error count, stuff etc
     error_count++;
     ESP_LOGE(tag, "Error count = %d", error_count);
 
@@ -37,7 +39,6 @@ bool
 dgr_check_conn_candidate(struct ble_hs_adv_fields *adv_fields) {
     // sensor name is DexcomXX, where XX are the last 2 digits of
     // the transmitter id
-    //TODO: add advertisement uuid to check
     if(adv_fields->name != NULL) {
         int name_len = adv_fields->name_len;
         if(adv_fields->name[name_len - 1] == transmitter_id[5] &&
@@ -203,8 +204,8 @@ dgr_gap_event(struct ble_gap_event *event, void *arg) {
 	        ble_gap_conn_find(event->enc_change.conn_handle, &conn_desc);
             dgr_print_conn_sec_state(conn_desc.sec_state);
 
-            dgr_send_notification_enable_msg(event->enc_change.conn_handle,
-                &control_uuid.u, dgr_send_control_enable_notif_cb, 1);
+            dgr_enable_server_side_updates_msg(event->enc_change.conn_handle,
+                                               &control_uuid.u, dgr_send_control_enable_notif_cb, 1);
 	        return 0;
 
 		default:

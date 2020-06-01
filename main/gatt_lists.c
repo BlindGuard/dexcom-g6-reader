@@ -2,6 +2,10 @@
 
 const char* tag_chrs = "[Dexcom-G6-Reader][lists]";
 
+/* This file contains some utility list functions for the lists containing
+ * discovered services, characteristics and descriptors.
+ */
+
 void
 dgr_clear_list(list *l) {
     if(l->head != NULL) {
@@ -67,6 +71,13 @@ dgr_create_svc_list_elm(struct ble_gatt_svc svc) {
     return le;
 }
 
+/**
+ * Searches for a characteristic by UUID in the list of discovered characteristics.
+ *
+ * @param uuid          UUID of the wanted characteristic
+ * @param out           If found the wanted characteristic is written to this variable
+ * @return              0 on success
+ */
 int
 dgr_find_chr_by_uuid(const ble_uuid_t *uuid, struct ble_gatt_chr *out) {
     list_elm le = *characteristics.head;

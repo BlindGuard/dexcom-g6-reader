@@ -29,10 +29,6 @@ list services = {NULL, NULL, 0};
 list characteristics = {NULL, NULL, 0};
 list descriptors = {NULL, NULL, 0};
 
-void
-dgr_send_auth_challenge_msg(uint16_t conn_handle);
-void
-dgr_send_keep_alive_msg(uint16_t conn_handle, uint8_t time);
 
 void
 dgr_discover_characteristics(uint16_t conn_handle) {
@@ -73,6 +69,13 @@ dgr_discover_services(uint16_t conn_handle) {
     }
 }
 
+/**
+ *  Call corresponding functions that handle received server-side updates.
+ *
+ * @param om                Message buffer
+ * @param attr_handle       The handle of the relevant ATT attribute
+ * @param conn_handle       Connection that received the message
+ */
 void
 dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
     if(om && om->om_len > 0) {
@@ -119,9 +122,18 @@ dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle) {
 /*****************************************************************************
  * message sending                                                           *
  *****************************************************************************/
+
+/**
+ * Enable server-side updates for a characteristic.
+ *
+ * @param conn_handle       The connection over which to execute the procedure
+ * @param uuid              UUID of the characteristic to enable server-side updates on
+ * @param cb                Desired callback function
+ * @param type              0 for notifications, 1 for indications, all other values enable both
+ */
 void
-dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid, ble_gatt_attr_fn *cb,
-    uint8_t type) {
+dgr_enable_server_side_updates_msg(uint16_t conn_handle, const ble_uuid_t *uuid, ble_gatt_attr_fn *cb,
+                                   uint8_t type) {
     // enable notifications/indications by writing to the CCCD of uuid
     uint8_t data[2] = { 0x0, 0x0 };
 
@@ -158,6 +170,13 @@ dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid, b
     }
 }
 
+/**
+ * Write the content of a buffer to the Authentication characteristic.
+ *
+ * @param conn_handle       The connection over which to execute the procedure
+ * @param cb                Desired callback function
+ * @param om                Data that is written to the authentication characteristic
+ */
 void
 dgr_write_auth_char(uint16_t conn_handle, ble_gatt_attr_fn *cb, struct os_mbuf *om) {
     int rc;
@@ -181,6 +200,13 @@ dgr_write_auth_char(uint16_t conn_handle, ble_gatt_attr_fn *cb, struct os_mbuf *
     }
 }
 
+/**
+ * Write the content of a buffer to the Control characteristic.
+ *
+ * @param conn_handle       The connection over which to execute the procedure
+ * @param cb                Desired callback function
+ * @param om                Data that is written to the authentication characteristic
+ */
 void
 dgr_write_control_char(uint16_t conn_handle, ble_gatt_attr_fn *cb, struct os_mbuf *om) {
     int rc;
@@ -352,7 +378,7 @@ dgr_discover_service_cb(uint16_t conn_handle, const struct ble_gatt_error *error
             return 0;
         } else {
             ESP_LOGE(tag_gatt, "Service discovery : Service is NULL");
-
+/*          // debug stuff for 80xxxx
 
             struct ble_gap_conn_desc conn_desc;
             int rc = ble_gap_conn_find(conn_handle, &conn_desc);
@@ -364,8 +390,8 @@ dgr_discover_service_cb(uint16_t conn_handle, const struct ble_gatt_error *error
                 ESP_LOGI(tag_gatt, "No connection found.");
             }
 
-            ESP_LOGI(tag_gatt, "Waiting if more happens..");
-            //dgr_error();
+            ESP_LOGI(tag_gatt, "Waiting if more happens..");*/
+            dgr_error();
         }
     }
 
@@ -385,8 +411,8 @@ dgr_discover_chr_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
         if(dgr_check_bond_state(conn_handle)) {
             // already bonded, start cgm reading
             ESP_LOGI(tag_gatt, "Already bonded with transmitter.");
-            dgr_send_notification_enable_msg(conn_handle, &control_uuid.u,
-                                             dgr_send_control_enable_notif_cb, 1);
+            dgr_enable_server_side_updates_msg(conn_handle, &control_uuid.u,
+                                               dgr_send_control_enable_notif_cb, 1);
         } else {
             // not bonded, start authentication
             ESP_LOGI(tag_gatt, "Not bonded with transmitter. Starting authentication.");

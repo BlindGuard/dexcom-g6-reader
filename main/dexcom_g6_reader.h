@@ -118,7 +118,10 @@ char* translate_calibration_state(uint8_t state);
 void dgr_discover_services(uint16_t conn_handle);
 void dgr_handle_rx(struct os_mbuf *om, uint16_t attr_handle, uint16_t conn_handle);
 void dgr_send_glucose_tx_msg(uint16_t conn_handle);
+void dgr_send_auth_challenge_msg(uint16_t conn_handle);
+void dgr_send_keep_alive_msg(uint16_t conn_handle, uint8_t time);
 
+// callbacks
 // ble_gatt_dsc_fn
 int
 dgr_discover_dsc_cb(uint16_t conn_handle, const struct ble_gatt_error *error,
@@ -170,8 +173,8 @@ void dgr_print_list_elm(list_elm *le);
 /**  messages.c **/
 extern uint8_t backfill_buffer[500];
 extern uint32_t backfill_buffer_pos;
-void dgr_send_notification_enable_msg(uint16_t conn_handle, const ble_uuid_t *uuid,
-    ble_gatt_attr_fn *cb, uint8_t type);
+void dgr_enable_server_side_updates_msg(uint16_t conn_handle, const ble_uuid_t *uuid,
+                                        ble_gatt_attr_fn *cb, uint8_t type);
 void dgr_build_auth_request_msg(struct os_mbuf *om);
 void dgr_build_auth_challenge_msg(struct os_mbuf *om);
 void dgr_build_keep_alive_msg(struct os_mbuf *om, uint8_t time);
