@@ -337,7 +337,6 @@ dgr_parse_backfill_status_msg(const uint8_t *data, uint8_t length) {
 void
 dgr_parse_time_msg(const uint8_t *data, uint8_t length, uint16_t conn_handle) {
     if(length == 16) {
-        //TODO: date calculations
         uint8_t state = data[1];
         // seconds since transmitter start
         uint32_t current_time = make_u32_from_bytes_le(&data[2]);

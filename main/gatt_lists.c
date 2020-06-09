@@ -97,6 +97,10 @@ dgr_find_chr_by_uuid(const ble_uuid_t *uuid, struct ble_gatt_chr *out) {
     }
 }
 
+/*****************************************************************************
+ *  debug  functions                                                         *
+ *****************************************************************************/
+
 void
 dgr_print_list_elm(list_elm *le) {
     char buf[BLE_UUID_STR_LEN];

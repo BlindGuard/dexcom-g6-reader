@@ -1,5 +1,7 @@
 # dexcom-g6-reader
 
+This project was developed for my bachelor thesis at the [Telecooperation Lab (TK)](https://www.informatik.tu-darmstadt.de/telekooperation/telecooperation_group/index.en.jsp), [TU Darmstadt](https://www.tu-darmstadt.de/).
+
 ## Getting started
 
 ### Hardware

@@ -44,7 +44,7 @@ dgr_save_to_ringbuffer(uint32_t timestamp, uint16_t glucose, uint8_t calibration
     } else {
         ESP_LOGE(tag_stg, "Ringbuffer is full. Printing debug info.");
         dgr_print_rbuf(false);
-        //TODO: do something else
+        //TODO: maybe do something more useful
     }
 }
 
